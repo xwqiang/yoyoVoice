@@ -9,6 +9,7 @@ from app.config import settings
 from app.schemas.ai import RecommendationItem, WeeklyReportResponse, WordCreate
 from app.schemas.word import WordCreate as WordCreateSchema
 from app.services.learning import get_child_stats, rule_based_recommendations
+from app.services.learning_events import get_child_event_summary
 from app.services.word_parser import parse_words_from_text
 
 logger = logging.getLogger(__name__)
@@ -111,15 +112,17 @@ async def get_recommendations(db: Session, child_id: int, limit: int = 5) -> tup
     from app.services.daily_plan import get_child_word_pool
 
     stats = get_child_stats(db, child_id)
+    event_summary = get_child_event_summary(db, child_id, days=14)
     child = db.query(Child).filter(Child.id == child_id).first()
     words = get_child_word_pool(db, child) if child else []
     word_map = {w.id: w for w in words}
 
     prompt = f"""你是儿童英语学习助手。根据以下学习数据，推荐 {limit} 个需要加强的练习。
-返回严格 JSON 数组，每项格式：{{"word_id": int, "module": "meaning|spelling|pronunciation", "reason": "中文原因", "priority": int}}
+返回严格 JSON 数组，每项格式：{{"word_id": int, "module": "meaning|spelling|pronunciation", "reason": "中文原因", "priority": int, "evidence": ["基于哪些学习记录"]}}
 只返回 JSON，不要其他文字。
 
 学习统计：{json.dumps(stats, ensure_ascii=False)}
+学习过程事件统计：{json.dumps(event_summary, ensure_ascii=False)}
 可用单词：{json.dumps([{"id": w.id, "word_en": w.word_en} for w in words[:50]], ensure_ascii=False)}
 """
     raw = await _call_llm(prompt)
@@ -138,13 +141,40 @@ async def get_recommendations(db: Session, child_id: int, limit: int = 5) -> tup
                             module=entry.get("module", "spelling"),
                             reason=entry.get("reason", "需要加强"),
                             priority=entry.get("priority", len(items) + 1),
+                            evidence=entry.get("evidence", [])[:3]
+                            if isinstance(entry.get("evidence"), list)
+                            else [],
                         )
                     )
             if items:
                 return items, "ai"
 
     rule_items = rule_based_recommendations(db, child_id, limit)
-    return [RecommendationItem(**r) for r in rule_items], "rule"
+    module_stats = event_summary.get("by_module", {})
+    fallback_items: list[RecommendationItem] = []
+    for idx, r in enumerate(rule_items[:limit], start=1):
+        mod = module_stats.get(r["module"], {})
+        evidence = []
+        attempts = mod.get("attempts")
+        wrong = mod.get("wrong")
+        avg_ms = mod.get("avg_duration_ms")
+        if attempts:
+            evidence.append(f"{r['module']}模块近14天作答 {attempts} 次")
+        if wrong:
+            evidence.append(f"其中错误 {wrong} 次")
+        if avg_ms:
+            evidence.append(f"平均用时 {int(avg_ms)}ms")
+        fallback_items.append(
+            RecommendationItem(
+                word_id=r["word_id"],
+                word_en=r["word_en"],
+                module=r["module"],
+                reason=r["reason"],
+                priority=r.get("priority", idx),
+                evidence=evidence,
+            )
+        )
+    return fallback_items, "rule"
 
 
 def _parse_ai_word_entries(data: list) -> list[WordCreateSchema]:

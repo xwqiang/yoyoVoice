@@ -121,6 +121,13 @@ export function AIPage() {
                       <span className="text-sm text-indigo-600">{r.module}</span>
                     </div>
                     <p className="text-sm text-slate-600 mt-1">{r.reason}</p>
+                    {r.evidence && r.evidence.length > 0 && (
+                      <ul className="mt-2 list-disc list-inside text-xs text-slate-500">
+                        {r.evidence.map((ev, idx) => (
+                          <li key={idx}>{ev}</li>
+                        ))}
+                      </ul>
+                    )}
                   </div>
                 ))}
               </div>

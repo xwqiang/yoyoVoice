@@ -123,20 +123,83 @@ def _pool_words_except(db: Session, child: Child, word: Word) -> list[Word]:
 
 
 def get_distractor_words(db: Session, child: Child, word: Word, count: int = 3) -> list[str]:
-    others = [w for w in _pool_words_except(db, child, word) if w.meaning_zh and w.meaning_zh != word.meaning_zh]
-    random.shuffle(others)
-    meanings = [w.meaning_zh for w in others[:count]]
-    while len(meanings) < count:
-        meanings.append(f"选项{len(meanings) + 1}")
+    # 先从孩子当前词池找干扰项，再从全局词库补齐，避免出现“选项1/2/3”占位词。
+    pool_others = [
+        w for w in _pool_words_except(db, child, word) if w.meaning_zh and w.meaning_zh != word.meaning_zh
+    ]
+    random.shuffle(pool_others)
+    meanings: list[str] = []
+    seen: set[str] = set()
+
+    for w in pool_others:
+        meaning = (w.meaning_zh or "").strip()
+        if not meaning or meaning in seen:
+            continue
+        seen.add(meaning)
+        meanings.append(meaning)
+        if len(meanings) >= count:
+            return meanings
+
+    global_candidates = (
+        db.query(Word)
+        .filter(
+            Word.id != word.id,
+            Word.meaning_zh.isnot(None),
+            Word.meaning_zh != "",
+            Word.meaning_zh != word.meaning_zh,
+        )
+        .order_by(func.random())
+        .limit(50)
+        .all()
+    )
+    for w in global_candidates:
+        meaning = (w.meaning_zh or "").strip()
+        if not meaning or meaning in seen:
+            continue
+        seen.add(meaning)
+        meanings.append(meaning)
+        if len(meanings) >= count:
+            break
+
     return meanings
 
 
 def get_distractor_en_words(db: Session, child: Child, word: Word, count: int = 3) -> list[str]:
-    others = _pool_words_except(db, child, word)
-    random.shuffle(others)
-    names = [w.word_en for w in others[:count]]
-    while len(names) < count:
-        names.append(f"word{len(names) + 1}")
+    pool_others = _pool_words_except(db, child, word)
+    random.shuffle(pool_others)
+    names: list[str] = []
+    seen: set[str] = set()
+
+    for w in pool_others:
+        name = (w.word_en or "").strip()
+        if not name or name.lower() in seen:
+            continue
+        seen.add(name.lower())
+        names.append(name)
+        if len(names) >= count:
+            return names
+
+    global_candidates = (
+        db.query(Word)
+        .filter(
+            Word.id != word.id,
+            Word.word_en.isnot(None),
+            Word.word_en != "",
+        )
+        .order_by(func.random())
+        .limit(50)
+        .all()
+    )
+    for w in global_candidates:
+        name = (w.word_en or "").strip()
+        key = name.lower()
+        if not name or key in seen:
+            continue
+        seen.add(key)
+        names.append(name)
+        if len(names) >= count:
+            break
+
     return names
 
 
@@ -155,9 +218,11 @@ def build_spelling_letters(word: Word) -> tuple[list[str], int]:
 def build_meaning_quiz(db: Session, child: Child, word: Word) -> tuple[list[str], str]:
     if _has_meaning(word):
         distractors = get_distractor_words(db, child, word, 3)
-        options = distractors + [word.meaning_zh]
-        random.shuffle(options)
-        return options, "meaning"
+        if len(distractors) >= 3:
+            options = distractors + [word.meaning_zh]
+            random.shuffle(options)
+            return options, "meaning"
+        # 干扰释义不足时降级为英文识别，避免给到占位选项。
     distractors = get_distractor_en_words(db, child, word, 3)
     options = distractors + [word.word_en]
     random.shuffle(options)

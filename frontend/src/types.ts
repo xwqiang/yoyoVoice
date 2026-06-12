@@ -156,6 +156,7 @@ export interface Recommendation {
   module: string
   reason: string
   priority: number
+  evidence?: string[]
 }
 
 export interface WeeklyReport {

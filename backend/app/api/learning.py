@@ -22,6 +22,7 @@ from app.services.learning import (
     build_spelling_letters,
     record_attempt,
 )
+from app.services.learning_events import log_learning_event
 from app.services.mastery_service import needs_teaching
 from app.services.validators import ensure_word_in_pool, resolve_plan_item
 
@@ -57,6 +58,25 @@ def meaning_quiz(
     resolve_plan_item(db, child_id, plan_item_id, word_id, "meaning", allow_completed=True)
     options, quiz_type = build_meaning_quiz(db, child, word)
     show_teaching = needs_teaching(db, child_id, word_id)
+    log_learning_event(
+        db,
+        child_id=child_id,
+        event_type="open_quiz",
+        module_type="meaning",
+        word_id=word_id,
+        plan_item_id=plan_item_id,
+        meta={"quiz_type": quiz_type},
+    )
+    if show_teaching:
+        log_learning_event(
+            db,
+            child_id=child_id,
+            event_type="teaching_shown",
+            module_type="meaning",
+            word_id=word_id,
+            plan_item_id=plan_item_id,
+        )
+    db.commit()
     return MeaningQuizResponse(
         word_id=word.id,
         word_en=word.word_en,
@@ -77,6 +97,16 @@ def meaning_check(body: MeaningCheckRequest, user: User = Depends(get_current_us
     has_meaning = bool(word.meaning_zh and word.meaning_zh.strip())
     correct_answer = word.meaning_zh if has_meaning else word.word_en
     is_correct = body.selected_meaning.strip() == correct_answer.strip()
+    log_learning_event(
+        db,
+        child_id=body.child_id,
+        event_type="submit_answer",
+        module_type="meaning",
+        word_id=body.word_id,
+        is_correct=is_correct,
+        duration_ms=body.duration_ms,
+        plan_item_id=body.plan_item_id,
+    )
     result = record_attempt(
         db,
         body.child_id,
@@ -111,6 +141,25 @@ def spelling_quiz(
     has_meaning = bool(word.meaning_zh and word.meaning_zh.strip())
     letters, letter_count = build_spelling_letters(word)
     show_teaching = needs_teaching(db, child_id, word_id)
+    log_learning_event(
+        db,
+        child_id=child_id,
+        event_type="open_quiz",
+        module_type="spelling",
+        word_id=word_id,
+        plan_item_id=plan_item_id,
+        meta={"letter_count": letter_count},
+    )
+    if show_teaching:
+        log_learning_event(
+            db,
+            child_id=child_id,
+            event_type="teaching_shown",
+            module_type="spelling",
+            word_id=word_id,
+            plan_item_id=plan_item_id,
+        )
+    db.commit()
     return SpellingQuizResponse(
         word_id=word.id,
         word_en=word.word_en,
@@ -130,6 +179,17 @@ def spelling_check(body: SpellingCheckRequest, user: User = Depends(get_current_
     child, word = _get_child_and_word(db, user, body.child_id, body.word_id)
     plan_item = resolve_plan_item(db, body.child_id, body.plan_item_id, body.word_id, "spelling")
     is_correct = body.spelling.strip().lower() == word.word_en.strip().lower()
+    log_learning_event(
+        db,
+        child_id=body.child_id,
+        event_type="submit_answer",
+        module_type="spelling",
+        word_id=body.word_id,
+        is_correct=is_correct,
+        duration_ms=body.duration_ms,
+        plan_item_id=body.plan_item_id,
+        meta={"answer_length": len(body.spelling.strip())},
+    )
     result = record_attempt(
         db,
         body.child_id,
@@ -162,6 +222,24 @@ def pronunciation_quiz(
     child, word = _get_child_and_word(db, user, child_id, word_id)
     resolve_plan_item(db, child_id, plan_item_id, word_id, "pronunciation", allow_completed=True)
     show_teaching = needs_teaching(db, child_id, word_id)
+    log_learning_event(
+        db,
+        child_id=child_id,
+        event_type="open_quiz",
+        module_type="pronunciation",
+        word_id=word_id,
+        plan_item_id=plan_item_id,
+    )
+    if show_teaching:
+        log_learning_event(
+            db,
+            child_id=child_id,
+            event_type="teaching_shown",
+            module_type="pronunciation",
+            word_id=word_id,
+            plan_item_id=plan_item_id,
+        )
+    db.commit()
     return PronunciationQuizResponse(
         word_id=word.id,
         word_en=word.word_en,
@@ -190,6 +268,17 @@ async def pronunciation_check(
     scores = assess_pronunciation(word.word_en, audio_bytes, audio.filename or "audio.webm")
     score = scores["pronunciation_score"]
     is_correct = score >= 60
+    log_learning_event(
+        db,
+        child_id=child_id,
+        event_type="submit_answer",
+        module_type="pronunciation",
+        word_id=word_id,
+        is_correct=is_correct,
+        duration_ms=duration_ms,
+        plan_item_id=plan_item_id,
+        meta={"pronunciation_score": score},
+    )
 
     result = record_attempt(
         db,

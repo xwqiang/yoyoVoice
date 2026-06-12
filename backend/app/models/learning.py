@@ -38,6 +38,21 @@ class LearningAttempt(Base):
     )
 
 
+class LearningEvent(Base):
+    __tablename__ = "learning_events"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    child_id: Mapped[int] = mapped_column(ForeignKey("children.id"), index=True)
+    word_id: Mapped[Optional[int]] = mapped_column(ForeignKey("words.id"), nullable=True, index=True)
+    module_type: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
+    event_type: Mapped[str] = mapped_column(String(50), index=True)
+    is_correct: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    duration_ms: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    plan_item_id: Mapped[Optional[int]] = mapped_column(ForeignKey("daily_plan_items.id"), nullable=True, index=True)
+    event_meta: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
 class PronunciationResult(Base):
     __tablename__ = "pronunciation_results"
 

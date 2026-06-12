@@ -16,6 +16,7 @@ class RecommendationItem(BaseModel):
     module: str
     reason: str
     priority: int
+    evidence: list[str] = []
 
 
 class RecommendResponse(BaseModel):
