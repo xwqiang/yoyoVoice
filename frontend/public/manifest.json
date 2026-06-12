@@ -1,0 +1,18 @@
+{
+  "name": "yoyoVoice 儿童英语学习",
+  "short_name": "yoyoVoice",
+  "description": "儿童英语单词学习：拼写、发音、释义",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f8fafc",
+  "theme_color": "#4f46e5",
+  "orientation": "any",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
