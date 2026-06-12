@@ -82,11 +82,15 @@ export async function pickNextWord(
   existingPlan?: DailyPlan | null,
 ): Promise<{ wordId: number; planItemId?: number; fromPlan: boolean } | null> {
   const plan = existingPlan !== undefined ? existingPlan : await api.dailyPlans.today(childId)
+  const pool = await api.children.wordPool(childId)
+  if (pool.length === 0) return null
+  const poolIds = new Set(pool.map((w) => w.id))
   const pending =
     plan?.items.filter(
       (i) =>
         i.module_type === moduleType &&
         i.status !== 'completed' &&
+        poolIds.has(i.word_id) &&
         !excludeItemIds.includes(i.id),
     ) ?? []
 
@@ -94,9 +98,6 @@ export async function pickNextWord(
     const item = pending[0]
     return { wordId: item.word_id, planItemId: item.id, fromPlan: true }
   }
-
-  const pool = await api.children.wordPool(childId)
-  if (pool.length === 0) return null
 
   const word = pool[Math.floor(Math.random() * pool.length)]
   return { wordId: word.id, fromPlan: false }

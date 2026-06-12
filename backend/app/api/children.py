@@ -1,3 +1,5 @@
+from datetime import date
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
@@ -134,6 +136,17 @@ def switch_source(
         child.learning_mode = "custom"
         child.active_custom_list_id = body.custom_list_id
         child.active_course_id = None
+
+    # 切换学习源后，当天计划可能仍包含旧词表单词，直接清空避免学生端命中过期任务。
+    today_plan = (
+        db.query(DailyPlan)
+        .filter(DailyPlan.child_id == child.id, DailyPlan.plan_date == date.today())
+        .first()
+    )
+    if today_plan:
+        db.query(DailyPlanItem).filter(DailyPlanItem.plan_id == today_plan.id).delete(synchronize_session=False)
+        db.delete(today_plan)
+
     db.commit()
     db.refresh(child)
     return child

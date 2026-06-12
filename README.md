@@ -16,6 +16,9 @@
 ### 家长端首页（Dashboard）
 ![家长端首页](docs/screenshots/admin-dashboard.png)
 
+### 学生端首页
+![学生端首页](docs/screenshots/student-home.png)
+
 ### 孩子管理页
 ![孩子管理页](docs/screenshots/children-management.png)
 
