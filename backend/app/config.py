@@ -8,7 +8,11 @@ AUDIO_DIR = DATA_DIR / "audio"
 
 
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
+    model_config = SettingsConfigDict(
+        env_file=str(ROOT_DIR / "backend" / ".env"),
+        env_file_encoding="utf-8",
+        extra="ignore",
+    )
 
     secret_key: str = "dev-secret-change-in-production"
     database_url: str = f"sqlite:///{DATA_DIR / 'yoyovoice.db'}"
