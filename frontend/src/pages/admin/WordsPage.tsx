@@ -97,7 +97,7 @@ export function WordsPage() {
       if (res.words.length === 0) {
         setImportError('未能识别单词。试试每行一个，或用顿号/逗号分隔：apple、dog、cat')
       } else if (res.source !== 'ai' && res.words.every((w) => !w.meaning_zh)) {
-        setImportError('已识别单词，可直接保存。如需自动补充释义，请在 .env 中配置 OPENAI_API_KEY')
+        setImportError('已识别单词，可直接保存。如需自动补充释义，请配置 CURSOR_API_KEY 或 OPENAI_API_KEY')
       }
     } catch (err) {
       setImportError(err instanceof Error ? err.message : '解析失败，请稍后重试')
