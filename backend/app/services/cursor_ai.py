@@ -118,17 +118,24 @@ async def _call_openai_compatible(
         return None
 
 
+def _is_local_dev() -> bool:
+    """Detect if running in local dev (where Cursor SDK bridge is available)."""
+    import shutil
+    return shutil.which("cursor-sdk-bridge") is not None
+
+
 async def _call_llm(prompt: str, timeout: float = CURSOR_TIMEOUT_SECONDS) -> str | None:
-    """Try Cursor SDK (local dev), Cursor HTTP API, then OpenAI."""
+    """Try Cursor SDK (local only), Cursor HTTP API, then OpenAI."""
     if settings.cursor_api_key:
-        try:
-            result = await asyncio.wait_for(
-                asyncio.to_thread(_call_cursor_sdk, prompt), timeout=timeout
-            )
-            if result:
-                return result
-        except asyncio.TimeoutError:
-            logger.warning("Cursor SDK timed out after %ss", timeout)
+        if _is_local_dev():
+            try:
+                result = await asyncio.wait_for(
+                    asyncio.to_thread(_call_cursor_sdk, prompt), timeout=timeout
+                )
+                if result:
+                    return result
+            except asyncio.TimeoutError:
+                logger.warning("Cursor SDK timed out after %ss", timeout)
 
         result = await _call_cursor_api(prompt, timeout)
         if result:

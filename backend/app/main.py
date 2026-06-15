@@ -43,7 +43,16 @@ app.include_router(ai.router)
 
 @app.get("/api/health")
 def health():
-    return {"status": "ok", "app": "yoyoVoice"}
+    return {
+        "status": "ok",
+        "app": "yoyoVoice",
+        "ai_configured": {
+            "cursor_api_key": bool(settings.cursor_api_key),
+            "openai_api_key": bool(settings.openai_api_key),
+            "cursor_model": settings.cursor_model,
+            "ai_base_url": settings.ai_base_url,
+        },
+    }
 
 
 FRONTEND_DIST = Path(__file__).resolve().parents[2] / "frontend" / "dist"
