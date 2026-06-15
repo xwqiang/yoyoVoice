@@ -13,11 +13,42 @@ from app.schemas.ai import (
 )
 from app.schemas.word import WordCreate
 from app.services.child_access import get_child_for_user, get_current_user
+from app.config import settings
 from app.services.cursor_ai import generate_weekly_report, get_recommendations, import_words_from_text
 from app.services.word_service import bulk_get_or_create
 from app.models import User
 
 router = APIRouter(prefix="/api/ai", tags=["ai"])
+
+
+@router.get("/test-llm")
+async def test_llm():
+    """Debug endpoint: test if AI call works end-to-end."""
+    from app.services.cursor_ai import _call_cursor_api, _call_openai
+
+    errors = []
+    result = None
+
+    if settings.cursor_api_key:
+        try:
+            result = await _call_cursor_api("Say hello in one word.", timeout=15)
+        except Exception as e:
+            errors.append(f"cursor_api: {e}")
+
+    if not result and settings.openai_api_key:
+        try:
+            result = await _call_openai("Say hello in one word.", timeout=15)
+        except Exception as e:
+            errors.append(f"openai: {e}")
+
+    return {
+        "cursor_api_key_set": bool(settings.cursor_api_key),
+        "openai_api_key_set": bool(settings.openai_api_key),
+        "model": settings.cursor_model,
+        "base_url": settings.ai_base_url,
+        "result": result,
+        "errors": errors,
+    }
 
 
 @router.post("/recommend", response_model=RecommendResponse)
