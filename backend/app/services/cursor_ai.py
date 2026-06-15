@@ -69,77 +69,37 @@ async def _call_openai(prompt: str, timeout: float = 30.0) -> str | None:
     """Call OpenAI-compatible API."""
     if not settings.openai_api_key:
         return None
-    return await _call_openai_compatible(
-        api_key=settings.openai_api_key,
-        base_url=settings.openai_base_url or None,
-        model=settings.openai_model,
-        prompt=prompt,
-        timeout=timeout,
-        label="OpenAI",
-    )
-
-
-async def _call_cursor_api(prompt: str, timeout: float = 30.0) -> str | None:
-    """Call Cursor HTTP API (works on Azure; unlike the local-only SDK)."""
-    if not settings.cursor_api_key:
-        return None
-    return await _call_openai_compatible(
-        api_key=settings.cursor_api_key,
-        base_url=settings.ai_base_url or "https://api.cursor.com/v1",
-        model=settings.cursor_model,
-        prompt=prompt,
-        timeout=timeout,
-        label="Cursor API",
-    )
-
-
-async def _call_openai_compatible(
-    *,
-    api_key: str,
-    base_url: str | None,
-    model: str,
-    prompt: str,
-    timeout: float,
-    label: str,
-) -> str | None:
     try:
         from openai import AsyncOpenAI
 
-        client = AsyncOpenAI(api_key=api_key, base_url=base_url, timeout=timeout)
+        client = AsyncOpenAI(
+            api_key=settings.openai_api_key,
+            base_url=settings.openai_base_url or None,
+            timeout=timeout,
+        )
         response = await client.chat.completions.create(
-            model=model,
+            model=settings.openai_model,
             messages=[{"role": "user", "content": prompt}],
             temperature=0.3,
         )
         content = response.choices[0].message.content
         return content if content else None
     except Exception as exc:
-        logger.warning("%s call failed: %s", label, exc)
+        logger.warning("OpenAI call failed: %s", exc)
         return None
 
 
-def _is_local_dev() -> bool:
-    """Detect if running in local dev (where Cursor SDK bridge is available)."""
-    import shutil
-    return shutil.which("cursor-sdk-bridge") is not None
-
-
 async def _call_llm(prompt: str, timeout: float = CURSOR_TIMEOUT_SECONDS) -> str | None:
-    """Try Cursor SDK (local only), Cursor HTTP API, then OpenAI."""
+    """Try Cursor SDK first (if key set), then OpenAI."""
     if settings.cursor_api_key:
-        if _is_local_dev():
-            try:
-                result = await asyncio.wait_for(
-                    asyncio.to_thread(_call_cursor_sdk, prompt), timeout=timeout
-                )
-                if result:
-                    return result
-            except asyncio.TimeoutError:
-                logger.warning("Cursor SDK timed out after %ss", timeout)
-
-        result = await _call_cursor_api(prompt, timeout)
-        if result:
-            return result
+        try:
+            result = await asyncio.wait_for(
+                asyncio.to_thread(_call_cursor_sdk, prompt), timeout=timeout
+            )
+            if result:
+                return result
+        except asyncio.TimeoutError:
+            logger.warning("Cursor SDK timed out after %ss", timeout)
 
     if settings.openai_api_key:
         return await _call_openai(prompt, timeout)

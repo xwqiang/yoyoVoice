@@ -23,33 +23,28 @@ router = APIRouter(prefix="/api/ai", tags=["ai"])
 
 @router.get("/test-llm")
 async def test_llm():
-    """Debug endpoint: test if AI call works end-to-end."""
-    from openai import AsyncOpenAI
+    """Debug endpoint: test Cursor SDK call end-to-end."""
+    import asyncio
+    from app.services.cursor_ai import _call_cursor_sdk
 
     errors = []
     result = None
 
     if settings.cursor_api_key:
         try:
-            client = AsyncOpenAI(
-                api_key=settings.cursor_api_key,
-                base_url=settings.ai_base_url or "https://api.cursor.com/v1",
-                timeout=15,
+            result = await asyncio.wait_for(
+                asyncio.to_thread(_call_cursor_sdk, "Say hello in one word."),
+                timeout=30,
             )
-            response = await client.chat.completions.create(
-                model=settings.cursor_model,
-                messages=[{"role": "user", "content": "Say hello in one word."}],
-                temperature=0.3,
-            )
-            result = response.choices[0].message.content
+        except asyncio.TimeoutError:
+            errors.append("Cursor SDK timed out after 30s")
         except Exception as e:
-            errors.append(f"cursor_api ({type(e).__name__}): {e}")
+            errors.append(f"cursor_sdk ({type(e).__name__}): {e}")
 
     return {
         "cursor_api_key_set": bool(settings.cursor_api_key),
         "openai_api_key_set": bool(settings.openai_api_key),
         "model": settings.cursor_model,
-        "base_url": settings.ai_base_url,
         "result": result,
         "errors": errors,
     }
