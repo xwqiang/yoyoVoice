@@ -10,12 +10,14 @@ interface ModuleCardProps {
 }
 
 const MODULE_GRADIENTS: Record<string, string> = {
+  learn: 'from-sky-400 to-blue-600',
   meaning: 'from-violet-400 to-purple-600',
   spelling: 'from-emerald-400 to-teal-600',
   pronunciation: 'from-amber-400 to-orange-500',
 }
 
 const RING_COLORS: Record<string, string> = {
+  learn: '#0ea5e9',
   meaning: '#8b5cf6',
   spelling: '#10b981',
   pronunciation: '#f59e0b',

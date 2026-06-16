@@ -4,14 +4,13 @@ import { AnimatePresence, motion } from 'framer-motion'
 import { api } from '../../api/client'
 import { ModuleShell } from '../../components/student/ModuleShell'
 import { KidButton } from '../../components/student/KidButton'
-import { TeachingCard } from '../../components/student/TeachingCard'
 import { CelebrationOverlay } from '../../components/student/CelebrationOverlay'
 import { AchievementToast } from '../../components/student/AchievementToast'
 import {
+  getModuleConfig,
   goToModuleHome,
   moduleProgressLabel,
   pickNextWord,
-  STUDENT_MODULES,
 } from '../../utils/moduleHelpers'
 import { speakWord } from '../../utils/studentNav'
 import { playCorrectSound, playWrongSound } from '../../utils/sounds'
@@ -25,7 +24,7 @@ interface LetterTile {
 export function SpellingModule() {
   const { childId } = useParams<{ childId: string }>()
   const navigate = useNavigate()
-  const config = STUDENT_MODULES[1]
+  const config = getModuleConfig('spelling')
 
   const [plan, setPlan] = useState<DailyPlan | null>(null)
   const [poolSize, setPoolSize] = useState(0)
@@ -42,13 +41,10 @@ export function SpellingModule() {
   const [submitting, setSubmitting] = useState(false)
   const [loading, setLoading] = useState(true)
   const [finished, setFinished] = useState(false)
+  const [reviewMode, setReviewMode] = useState(false)
   const [error, setError] = useState('')
+  const [needLearnFirst, setNeedLearnFirst] = useState(false)
   const [startTime, setStartTime] = useState(Date.now())
-
-  const [showTeaching, setShowTeaching] = useState(false)
-  const [teachingData, setTeachingData] = useState<{
-    wordEn: string; meaningZh: string | null; phonetic: string | null; exampleSentence: string | null
-  } | null>(null)
 
   const [showCelebration, setShowCelebration] = useState(false)
   const [celebrationXp, setCelebrationXp] = useState(0)
@@ -63,59 +59,67 @@ export function SpellingModule() {
     setSlots(Array(letterCount).fill(null))
   }
 
-  const loadNext = useCallback(async () => {
+  const loadNext = useCallback(async (review = reviewMode) => {
     if (!childId) return
     setLoading(true)
     setError('')
+    setNeedLearnFirst(false)
     setFeedback(null)
     setCorrectAnswer('')
     setSubmitting(false)
     setFinished(false)
-    setShowTeaching(false)
-    setTeachingData(null)
     setSpeakText('')
     setAvailable([])
     setSlots([])
     try {
       const id = Number(childId)
-      const [p, pool] = await Promise.all([
+      const [p, pool, learned] = await Promise.all([
         api.dailyPlans.today(id),
         api.children.wordPool(id),
+        api.children.learnedWords(id),
       ])
       setPlan(p)
       setPoolSize(pool.length)
 
-      const next = await pickNextWord(id, 'spelling', [], p, practicedWordIds.current)
+      const next = await pickNextWord(
+        id,
+        'spelling',
+        [],
+        p,
+        practicedWordIds.current,
+        learned.word_ids,
+        { review },
+      )
       if (!next) {
+        if (!review && learned.word_ids.length === 0 && pool.length > 0) {
+          setNeedLearnFirst(true)
+        }
         setFinished(true)
         return
       }
-      const quiz = await api.learning.spellingQuiz(id, next.wordId, next.planItemId)
+      const activeReview = review || !!next.review
+      const itemId = activeReview ? undefined : next.planItemId
+      const quiz = await api.learning.spellingQuiz(id, next.wordId, itemId)
       setSpeakText(quiz.word_en)
       setWordId(quiz.word_id)
-      setPlanItemId(next.planItemId)
+      setPlanItemId(itemId)
       setMeaning(quiz.meaning_zh)
       setPromptType(quiz.prompt_type === 'meaning' ? 'meaning' : 'listen')
       setupLetters(quiz.letters, quiz.letter_count)
-
-      if (quiz.needs_teaching) {
-        setTeachingData({
-          wordEn: quiz.word_en,
-          meaningZh: quiz.meaning_zh,
-          phonetic: quiz.phonetic,
-          exampleSentence: quiz.example_sentence,
-        })
-        setShowTeaching(true)
-      } else {
-        setStartTime(Date.now())
-        setTimeout(() => speakWord(quiz.word_en), 300)
-      }
+      setStartTime(Date.now())
+      setTimeout(() => speakWord(quiz.word_en), 300)
     } catch (err) {
-      setError(err instanceof Error ? err.message : '加载失败')
+      const msg = err instanceof Error ? err.message : '加载失败'
+      if (msg.includes('学一学')) {
+        setNeedLearnFirst(true)
+        setFinished(true)
+      } else {
+        setError(msg)
+      }
     } finally {
       setLoading(false)
     }
-  }, [childId])
+  }, [childId, reviewMode])
 
   useEffect(() => { loadNext() }, [loadNext])
 
@@ -126,10 +130,11 @@ export function SpellingModule() {
     }
   }, [achievementQueue, currentAchievement])
 
-  const handleTeachingDone = () => {
-    setShowTeaching(false)
-    setStartTime(Date.now())
-    setTimeout(() => speakWord(speakText), 200)
+  const startReview = () => {
+    practicedWordIds.current = []
+    setSessionDone(0)
+    setReviewMode(true)
+    loadNext(true)
   }
 
   const triggerCelebration = (gamification: GamificationData) => {
@@ -175,7 +180,7 @@ export function SpellingModule() {
         child_id: Number(childId),
         word_id: wordId,
         spelling,
-        plan_item_id: planItemId,
+        plan_item_id: reviewMode ? undefined : planItemId,
         duration_ms: Date.now() - startTime,
       })
       setCorrectAnswer(res.correct_answer)
@@ -187,7 +192,7 @@ export function SpellingModule() {
           practicedWordIds.current = [...practicedWordIds.current, wordId]
           setSessionDone((n) => n + 1)
           setShowCelebration(false)
-          await loadNext()
+          await loadNext(reviewMode)
         }, 2000)
       } else {
         playWrongSound()
@@ -204,7 +209,7 @@ export function SpellingModule() {
   }
 
   const allFilled = slots.length > 0 && slots.every((s) => s !== null)
-  const progress = moduleProgressLabel(plan, 'spelling', poolSize, sessionDone)
+  const progress = moduleProgressLabel(plan, 'spelling', poolSize, sessionDone, reviewMode)
 
   if (!childId) return null
 
@@ -225,15 +230,7 @@ export function SpellingModule() {
         onDone={() => setCurrentAchievement(null)}
       />
 
-      {showTeaching && teachingData ? (
-        <TeachingCard
-          wordEn={teachingData.wordEn}
-          meaningZh={teachingData.meaningZh}
-          phonetic={teachingData.phonetic}
-          exampleSentence={teachingData.exampleSentence}
-          onDone={handleTeachingDone}
-        />
-      ) : error ? (
+      {error ? (
         <div className="flex-1 flex flex-col items-center justify-center p-8 text-center">
           <p className="text-xl text-red-500 mb-6">{error}</p>
           <KidButton color="green" onClick={loadNext}>重试</KidButton>
@@ -244,17 +241,31 @@ export function SpellingModule() {
           initial={{ scale: 0.8, opacity: 0 }}
           animate={{ scale: 1, opacity: 1 }}
         >
-          <motion.span
-            className="text-9xl mb-6"
-            animate={{ rotate: [0, 10, -10, 0] }}
-            transition={{ repeat: Infinity, duration: 2 }}
-          >
-            🌟
+          <motion.span className="text-9xl mb-6">
+            {needLearnFirst ? '📖' : '🌟'}
           </motion.span>
-          <h2 className="text-3xl font-bold text-emerald-600 mb-4">拼一拼完成啦！</h2>
-          <KidButton color="green" onClick={() => goToModuleHome(childId, navigate)}>
-            返回首页
-          </KidButton>
+          {needLearnFirst ? (
+            <>
+              <h2 className="text-3xl font-bold text-emerald-600 mb-2">先去学一学吧！</h2>
+              <p className="text-lg text-slate-500 mb-6">认识单词之后，再来拼一拼挑战</p>
+              <KidButton color="green" onClick={() => navigate(`/learn/${childId}/learn`)}>
+                去学一学
+              </KidButton>
+            </>
+          ) : (
+            <>
+              <h2 className="text-3xl font-bold text-emerald-600 mb-2">拼一拼完成啦！</h2>
+              <p className="text-lg text-slate-500 mb-6">想再练一练？可以复习哦</p>
+              <div className="w-full max-w-xs flex flex-col gap-3">
+                <KidButton color="green" onClick={startReview}>
+                  再复习一遍 🔄
+                </KidButton>
+                <KidButton color="blue" size="md" onClick={() => goToModuleHome(childId, navigate)}>
+                  返回首页
+                </KidButton>
+              </div>
+            </>
+          )}
         </motion.div>
       ) : loading ? (
         <div className="flex-1 flex items-center justify-center">

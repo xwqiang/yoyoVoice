@@ -58,7 +58,7 @@ export interface CustomList {
 export interface DailyPlanItem {
   id: number
   word_id: number
-  module_type: 'meaning' | 'spelling' | 'pronunciation'
+  module_type: 'learn' | 'meaning' | 'spelling' | 'pronunciation'
   sort_order: number
   status: string
   is_review: number
@@ -109,6 +109,15 @@ export interface ChildStats {
   today_completed: number
   today_total: number
   achievements: AchievementData[]
+}
+
+export interface LearnCard {
+  word_id: number
+  word_en: string
+  meaning_zh: string | null
+  phonetic: string | null
+  example_sentence: string | null
+  plan_item_id: number | null
 }
 
 export interface MeaningQuiz {

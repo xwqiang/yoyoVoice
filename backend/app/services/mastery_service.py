@@ -2,9 +2,8 @@ from datetime import datetime
 
 from sqlalchemy.orm import Session
 
+from app.models.learning import LearningAttempt
 from app.models.word_mastery import WordMastery
-
-TEACHING_THRESHOLD = 30
 
 
 def get_or_create_mastery(db: Session, child_id: int, word_id: int) -> WordMastery:
@@ -24,22 +23,54 @@ def get_or_create_mastery(db: Session, child_id: int, word_id: int) -> WordMaste
     return mastery
 
 
-def needs_teaching(db: Session, child_id: int, word_id: int) -> bool:
-    """Determine if teaching card should be shown before quiz."""
-    mastery = (
-        db.query(WordMastery)
-        .filter(WordMastery.child_id == child_id, WordMastery.word_id == word_id)
+def is_word_learned(db: Session, child_id: int, word_id: int) -> bool:
+    """Word counts as learned after completing 学一学, or any prior study (legacy flow)."""
+    learned = (
+        db.query(LearningAttempt)
+        .filter(
+            LearningAttempt.child_id == child_id,
+            LearningAttempt.word_id == word_id,
+            LearningAttempt.module_type == "learn",
+            LearningAttempt.is_correct == 1,
+        )
         .first()
     )
-    if not mastery or mastery.first_seen_at is None:
+    if learned:
         return True
-    if (
-        mastery.meaning_score < TEACHING_THRESHOLD
-        and mastery.spelling_score < TEACHING_THRESHOLD
-        and mastery.pronunciation_score < TEACHING_THRESHOLD
-    ):
-        return True
-    return False
+    return (
+        db.query(LearningAttempt)
+        .filter(
+            LearningAttempt.child_id == child_id,
+            LearningAttempt.word_id == word_id,
+        )
+        .first()
+        is not None
+    )
+
+
+def get_learned_word_ids(db: Session, child_id: int) -> set[int]:
+    learned_ids: set[int] = set()
+    rows = (
+        db.query(LearningAttempt.word_id, LearningAttempt.module_type, LearningAttempt.is_correct)
+        .filter(LearningAttempt.child_id == child_id)
+        .all()
+    )
+    for word_id, module_type, is_correct in rows:
+        if module_type == "learn" and is_correct:
+            learned_ids.add(word_id)
+        elif module_type != "learn":
+            learned_ids.add(word_id)
+    return learned_ids
+
+
+def ensure_word_learned(db: Session, child_id: int, word_id: int) -> None:
+    from fastapi import HTTPException
+
+    if not is_word_learned(db, child_id, word_id):
+        raise HTTPException(
+            status_code=403,
+            detail="请先在「学一学」中学习这个单词，再来挑战吧",
+        )
 
 
 def update_mastery(

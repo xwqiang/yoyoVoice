@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 from app.models import Child
 
 XP_REWARDS = {
+    "learn": 5,
     "meaning": 10,
     "spelling": 15,
     "pronunciation": 20,

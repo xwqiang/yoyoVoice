@@ -19,7 +19,8 @@ from app.models import (
 from app.models.word_mastery import WordMastery
 
 
-MODULE_TYPES = ["meaning", "spelling", "pronunciation"]
+ASSESSMENT_MODULE_TYPES = ["meaning", "spelling", "pronunciation"]
+MODULE_TYPES = ["learn", *ASSESSMENT_MODULE_TYPES]
 REVIEW_INTERVALS = [1, 3, 7]
 
 
@@ -248,7 +249,7 @@ def generate_daily_plan(
 
     sort_order = 0
     for word in review_list:
-        for module in MODULE_TYPES:
+        for module in ASSESSMENT_MODULE_TYPES:
             db.add(
                 DailyPlanItem(
                     plan_id=plan.id,
@@ -261,7 +262,17 @@ def generate_daily_plan(
             sort_order += 1
 
     for word in new_list:
-        for module in MODULE_TYPES:
+        db.add(
+            DailyPlanItem(
+                plan_id=plan.id,
+                word_id=word.id,
+                module_type="learn",
+                sort_order=sort_order,
+                is_review=0,
+            )
+        )
+        sort_order += 1
+        for module in ASSESSMENT_MODULE_TYPES:
             db.add(
                 DailyPlanItem(
                     plan_id=plan.id,

@@ -4,6 +4,7 @@ import type {
   Course,
   CustomList,
   DailyPlan,
+  LearnCard,
   LearningCheckResult,
   MeaningQuiz,
   PronunciationQuiz,
@@ -90,6 +91,8 @@ export const api = {
       request<Child>('/api/children', { method: 'POST', body: JSON.stringify(body) }),
     update: (id: number, body: Record<string, unknown>) =>
       request<Child>(`/api/children/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
+    learnedWords: (id: number) =>
+      request<{ word_ids: number[] }>(`/api/children/${id}/learned-words`),
     delete: (id: number) => request<void>(`/api/children/${id}`, { method: 'DELETE' }),
     switchSource: (id: number, body: { learning_mode: string; course_id?: number; custom_list_id?: number }) =>
       request<Child>(`/api/children/${id}/switch-source`, { method: 'POST', body: JSON.stringify(body) }),
@@ -143,6 +146,15 @@ export const api = {
   },
 
   learning: {
+    learnCard: (childId: number, wordId: number, planItemId?: number) =>
+      request<LearnCard>(
+        `/api/learning/learn/card?child_id=${childId}&word_id=${wordId}${planItemId ? `&plan_item_id=${planItemId}` : ''}`
+      ),
+    learnComplete: (body: { child_id: number; word_id: number; plan_item_id?: number; duration_ms?: number }) =>
+      request<LearningCheckResult>('/api/learning/learn/complete', {
+        method: 'POST',
+        body: JSON.stringify(body),
+      }),
     meaningQuiz: (childId: number, wordId: number, planItemId?: number) =>
       request<MeaningQuiz>(
         `/api/learning/meaning/quiz?child_id=${childId}&word_id=${wordId}${planItemId ? `&plan_item_id=${planItemId}` : ''}`

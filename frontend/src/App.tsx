@@ -10,6 +10,8 @@ import { AIPage } from './pages/admin/AIPage'
 import { UsersPage } from './pages/admin/UsersPage'
 import { ChildSelectPage } from './pages/student/ChildSelectPage'
 import { StudentHomePage } from './pages/student/StudentHomePage'
+import { LearnHomePage } from './pages/student/LearnHomePage'
+import { LearnModule } from './pages/student/LearnModule'
 import { MeaningModule } from './pages/student/MeaningModule'
 import { SpellingModule } from './pages/student/SpellingModule'
 import { PronunciationModule } from './pages/student/PronunciationModule'
@@ -46,6 +48,8 @@ export default function App() {
       <Route path="/learn" element={<StudentLayout />}>
         <Route index element={<ChildSelectPage />} />
         <Route path=":childId" element={<ProtectedRoute><StudentHomePage /></ProtectedRoute>} />
+        <Route path=":childId/learn/play" element={<ProtectedRoute><LearnModule /></ProtectedRoute>} />
+        <Route path=":childId/learn" element={<ProtectedRoute><LearnHomePage /></ProtectedRoute>} />
         <Route path=":childId/meaning" element={<ProtectedRoute><MeaningModule /></ProtectedRoute>} />
         <Route path=":childId/spelling" element={<ProtectedRoute><SpellingModule /></ProtectedRoute>} />
         <Route path=":childId/pronunciation" element={<ProtectedRoute><PronunciationModule /></ProtectedRoute>} />

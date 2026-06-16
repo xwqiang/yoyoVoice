@@ -6,6 +6,8 @@ from app.models import PronunciationResult, User, Word
 from app.schemas.learning import (
     AchievementOut,
     GamificationData,
+    LearnCardResponse,
+    LearnCompleteRequest,
     LearningCheckResponse,
     MeaningCheckRequest,
     MeaningQuizResponse,
@@ -23,7 +25,7 @@ from app.services.learning import (
     record_attempt,
 )
 from app.services.learning_events import log_learning_event
-from app.services.mastery_service import needs_teaching
+from app.services.mastery_service import ensure_word_learned
 from app.services.validators import ensure_word_in_pool, resolve_plan_item
 
 router = APIRouter(prefix="/api/learning", tags=["learning"])
@@ -46,6 +48,69 @@ def _build_gamification(result: dict) -> GamificationData:
     )
 
 
+@router.get("/learn/card", response_model=LearnCardResponse)
+def learn_card(
+    child_id: int,
+    word_id: int,
+    plan_item_id: int | None = None,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    child, word = _get_child_and_word(db, user, child_id, word_id)
+    resolve_plan_item(db, child_id, plan_item_id, word_id, "learn", allow_completed=True)
+    log_learning_event(
+        db,
+        child_id=child_id,
+        event_type="open_learn",
+        module_type="learn",
+        word_id=word_id,
+        plan_item_id=plan_item_id,
+    )
+    db.commit()
+    return LearnCardResponse(
+        word_id=word.id,
+        word_en=word.word_en,
+        meaning_zh=word.meaning_zh,
+        phonetic=word.phonetic,
+        example_sentence=word.example_sentence,
+        plan_item_id=plan_item_id,
+    )
+
+
+@router.post("/learn/complete", response_model=LearningCheckResponse)
+def learn_complete(body: LearnCompleteRequest, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    child, word = _get_child_and_word(db, user, body.child_id, body.word_id)
+    plan_item = resolve_plan_item(db, body.child_id, body.plan_item_id, body.word_id, "learn")
+    log_learning_event(
+        db,
+        child_id=body.child_id,
+        event_type="learn_complete",
+        module_type="learn",
+        word_id=body.word_id,
+        is_correct=True,
+        duration_ms=body.duration_ms,
+        plan_item_id=body.plan_item_id,
+    )
+    result = record_attempt(
+        db,
+        body.child_id,
+        body.word_id,
+        "learn",
+        True,
+        score=100.0,
+        duration_ms=body.duration_ms,
+        plan_item=plan_item,
+    )
+    return LearningCheckResponse(
+        is_correct=True,
+        correct_answer=word.word_en,
+        score=100.0,
+        message="学会啦！⭐",
+        attempt_id=result["attempt"].id,
+        gamification=_build_gamification(result),
+    )
+
+
 @router.get("/meaning/quiz", response_model=MeaningQuizResponse)
 def meaning_quiz(
     child_id: int,
@@ -55,9 +120,9 @@ def meaning_quiz(
     db: Session = Depends(get_db),
 ):
     child, word = _get_child_and_word(db, user, child_id, word_id)
+    ensure_word_learned(db, child_id, word_id)
     resolve_plan_item(db, child_id, plan_item_id, word_id, "meaning", allow_completed=True)
     options, quiz_type = build_meaning_quiz(db, child, word)
-    show_teaching = needs_teaching(db, child_id, word_id)
     log_learning_event(
         db,
         child_id=child_id,
@@ -67,15 +132,6 @@ def meaning_quiz(
         plan_item_id=plan_item_id,
         meta={"quiz_type": quiz_type},
     )
-    if show_teaching:
-        log_learning_event(
-            db,
-            child_id=child_id,
-            event_type="teaching_shown",
-            module_type="meaning",
-            word_id=word_id,
-            plan_item_id=plan_item_id,
-        )
     db.commit()
     return MeaningQuizResponse(
         word_id=word.id,
@@ -86,7 +142,7 @@ def meaning_quiz(
         options=options,
         quiz_type=quiz_type,
         plan_item_id=plan_item_id,
-        needs_teaching=show_teaching,
+        needs_teaching=False,
     )
 
 
@@ -137,10 +193,10 @@ def spelling_quiz(
     db: Session = Depends(get_db),
 ):
     child, word = _get_child_and_word(db, user, child_id, word_id)
+    ensure_word_learned(db, child_id, word_id)
     resolve_plan_item(db, child_id, plan_item_id, word_id, "spelling", allow_completed=True)
     has_meaning = bool(word.meaning_zh and word.meaning_zh.strip())
     letters, letter_count = build_spelling_letters(word)
-    show_teaching = needs_teaching(db, child_id, word_id)
     log_learning_event(
         db,
         child_id=child_id,
@@ -150,15 +206,6 @@ def spelling_quiz(
         plan_item_id=plan_item_id,
         meta={"letter_count": letter_count},
     )
-    if show_teaching:
-        log_learning_event(
-            db,
-            child_id=child_id,
-            event_type="teaching_shown",
-            module_type="spelling",
-            word_id=word_id,
-            plan_item_id=plan_item_id,
-        )
     db.commit()
     return SpellingQuizResponse(
         word_id=word.id,
@@ -170,7 +217,7 @@ def spelling_quiz(
         example_sentence=word.example_sentence,
         prompt_type="meaning" if has_meaning else "listen",
         plan_item_id=plan_item_id,
-        needs_teaching=show_teaching,
+        needs_teaching=False,
     )
 
 
@@ -220,8 +267,8 @@ def pronunciation_quiz(
     db: Session = Depends(get_db),
 ):
     child, word = _get_child_and_word(db, user, child_id, word_id)
+    ensure_word_learned(db, child_id, word_id)
     resolve_plan_item(db, child_id, plan_item_id, word_id, "pronunciation", allow_completed=True)
-    show_teaching = needs_teaching(db, child_id, word_id)
     log_learning_event(
         db,
         child_id=child_id,
@@ -230,15 +277,6 @@ def pronunciation_quiz(
         word_id=word_id,
         plan_item_id=plan_item_id,
     )
-    if show_teaching:
-        log_learning_event(
-            db,
-            child_id=child_id,
-            event_type="teaching_shown",
-            module_type="pronunciation",
-            word_id=word_id,
-            plan_item_id=plan_item_id,
-        )
     db.commit()
     return PronunciationQuizResponse(
         word_id=word.id,
@@ -247,7 +285,7 @@ def pronunciation_quiz(
         phonetic=word.phonetic,
         example_sentence=word.example_sentence,
         plan_item_id=plan_item_id,
-        needs_teaching=show_teaching,
+        needs_teaching=False,
     )
 
 

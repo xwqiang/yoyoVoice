@@ -6,7 +6,7 @@ import { ModuleCard } from '../../components/student/ModuleCard'
 import { XPBar } from '../../components/student/XPBar'
 import { LevelBadge } from '../../components/student/LevelBadge'
 import { StreakFire } from '../../components/student/StreakFire'
-import { moduleProgress, STUDENT_MODULES } from '../../utils/moduleHelpers'
+import { moduleProgress, LEARN_MODULE, ASSESSMENT_MODULES } from '../../utils/moduleHelpers'
 import type { Child, ChildStats, DailyPlan } from '../../types'
 
 export function StudentHomePage() {
@@ -125,21 +125,37 @@ export function StudentHomePage() {
             {allDone ? '今天全部完成啦 🎉 太棒了！' : `今日任务 ${plan.completed}/${plan.total}`}
           </motion.p>
         ) : poolSize > 0 ? (
-          <p className="text-lg text-slate-500 mt-4">词表有 {poolSize} 个单词，选一个模块开始吧</p>
+          <p className="text-lg text-slate-500 mt-4">先学一学，再挑战认一认、拼一拼、读一读</p>
         ) : (
           <p className="text-lg text-amber-600 mt-4 font-medium">还没有单词，叫爸爸妈妈帮你添加吧</p>
         )}
       </motion.div>
 
       <div className="flex-1 flex flex-col gap-5 max-w-lg mx-auto w-full">
-        {STUDENT_MODULES.map((mod, index) => {
+        <motion.div
+          initial={{ opacity: 0, x: -30 }}
+          animate={{ opacity: 1, x: 0 }}
+          transition={{ delay: 0.2 }}
+        >
+          <ModuleCard
+            config={LEARN_MODULE}
+            completed={moduleProgress(plan, 'learn').completed}
+            total={moduleProgress(plan, 'learn').total}
+            poolSize={poolSize}
+            onClick={() => navigate(`/learn/${childId}/learn`)}
+          />
+        </motion.div>
+
+        <p className="text-center text-sm font-bold text-slate-400 tracking-wide">— 挑战考核 —</p>
+
+        {ASSESSMENT_MODULES.map((mod, index) => {
           const { total, completed } = moduleProgress(plan, mod.type)
           return (
             <motion.div
               key={mod.type}
               initial={{ opacity: 0, x: -30 }}
               animate={{ opacity: 1, x: 0 }}
-              transition={{ delay: 0.2 + index * 0.15 }}
+              transition={{ delay: 0.35 + index * 0.15 }}
             >
               <ModuleCard
                 config={mod}

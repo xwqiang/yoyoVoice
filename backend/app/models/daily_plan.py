@@ -27,7 +27,7 @@ class DailyPlanItem(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     plan_id: Mapped[int] = mapped_column(ForeignKey("daily_plans.id"), index=True)
     word_id: Mapped[int] = mapped_column(ForeignKey("words.id"), index=True)
-    module_type: Mapped[str] = mapped_column(String(20))  # meaning | spelling | pronunciation
+    module_type: Mapped[str] = mapped_column(String(20))  # learn | meaning | spelling | pronunciation
     sort_order: Mapped[int] = mapped_column(Integer, default=0)
     status: Mapped[str] = mapped_column(String(20), default="pending")  # pending | completed
     is_review: Mapped[int] = mapped_column(Integer, default=0)  # 0=new, 1=review

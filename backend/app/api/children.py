@@ -19,6 +19,7 @@ from app.schemas.child import ChildCreate, ChildResponse, ChildUpdate, SwitchSou
 from app.schemas.word import WordResponse
 from app.services.child_access import get_child_for_user, get_current_user
 from app.services.daily_plan import get_child_word_pool
+from app.services.mastery_service import get_learned_word_ids
 from app.models import User
 
 router = APIRouter(prefix="/api/children", tags=["children"])
@@ -68,6 +69,16 @@ def child_word_pool(
 ):
     child = get_child_for_user(db, child_id, user)
     return get_child_word_pool(db, child)
+
+
+@router.get("/{child_id}/learned-words")
+def child_learned_words(
+    child_id: int,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    get_child_for_user(db, child_id, user)
+    return {"word_ids": sorted(get_learned_word_ids(db, child_id))}
 
 
 @router.get("/{child_id}", response_model=ChildResponse)

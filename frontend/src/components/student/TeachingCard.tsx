@@ -1,6 +1,6 @@
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 import { motion } from 'framer-motion'
-import { speakWord } from '../../utils/studentNav'
+import { speakText, speakWordWithExample } from '../../utils/studentNav'
 import { KidButton } from './KidButton'
 
 interface TeachingCardProps {
@@ -9,29 +9,43 @@ interface TeachingCardProps {
   phonetic: string | null
   exampleSentence: string | null
   onDone: () => void
+  embedded?: boolean
+  doneLabel?: string
+  disabled?: boolean
 }
 
-export function TeachingCard({ wordEn, meaningZh, phonetic, exampleSentence, onDone }: TeachingCardProps) {
-  useEffect(() => {
-    const timer = setTimeout(() => speakWord(wordEn), 400)
-    return () => clearTimeout(timer)
-  }, [wordEn])
+export function TeachingCard({
+  wordEn,
+  meaningZh,
+  phonetic,
+  exampleSentence,
+  onDone,
+  embedded = false,
+  doneLabel = '我记住了!',
+  disabled = false,
+}: TeachingCardProps) {
+  const spokenKey = useRef('')
 
-  return (
+  useEffect(() => {
+    if (!wordEn.trim()) return
+    const key = `${wordEn}|${exampleSentence ?? ''}`
+    spokenKey.current = key
+    const timer = window.setTimeout(() => {
+      if (spokenKey.current === key) {
+        speakWordWithExample(wordEn, exampleSentence)
+      }
+    }, 300)
+    return () => window.clearTimeout(timer)
+  }, [wordEn, exampleSentence])
+
+  const card = (
     <motion.div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-indigo-50/80 backdrop-blur-sm"
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
+      className={`mx-4 flex w-full max-w-lg flex-col items-center gap-6 rounded-3xl bg-white p-10 shadow-xl ${embedded ? '' : ''}`}
+      initial={{ rotateY: embedded ? 0 : 90, opacity: 0 }}
+      animate={{ rotateY: 0, opacity: 1 }}
+      transition={{ type: 'spring', damping: 20, stiffness: 120 }}
+      style={embedded ? undefined : { perspective: 800 }}
     >
-      <motion.div
-        className="mx-4 flex w-full max-w-lg flex-col items-center gap-6 rounded-3xl bg-white p-10 shadow-xl"
-        initial={{ rotateY: 90, opacity: 0 }}
-        animate={{ rotateY: 0, opacity: 1 }}
-        transition={{ type: 'spring', damping: 20, stiffness: 120 }}
-        style={{ perspective: 800 }}
-      >
-        {/* Word */}
         <motion.h1
           className="text-center text-5xl font-extrabold text-violet-700"
           initial={{ scale: 0.3, opacity: 0 }}
@@ -41,7 +55,6 @@ export function TeachingCard({ wordEn, meaningZh, phonetic, exampleSentence, onD
           {wordEn}
         </motion.h1>
 
-        {/* Phonetic */}
         {phonetic && (
           <motion.p
             className="text-xl text-indigo-400"
@@ -53,17 +66,15 @@ export function TeachingCard({ wordEn, meaningZh, phonetic, exampleSentence, onD
           </motion.p>
         )}
 
-        {/* Speaker button */}
         <motion.button
           className="flex h-16 w-16 items-center justify-center rounded-full bg-violet-100 text-3xl text-violet-600 transition-colors active:bg-violet-200"
           whileTap={{ scale: 0.9 }}
-          onClick={() => speakWord(wordEn)}
-          aria-label="播放发音"
+          onClick={() => speakWordWithExample(wordEn, exampleSentence)}
+          aria-label="播放单词和例句"
         >
           🔊
         </motion.button>
 
-        {/* Chinese meaning */}
         {meaningZh && (
           <motion.p
             className="text-center text-3xl font-bold text-gray-800"
@@ -75,30 +86,57 @@ export function TeachingCard({ wordEn, meaningZh, phonetic, exampleSentence, onD
           </motion.p>
         )}
 
-        {/* Example sentence */}
         {exampleSentence && (
-          <motion.p
-            className="text-center text-lg leading-relaxed text-gray-500 italic"
+          <motion.div
+            className="w-full text-center"
             initial={{ y: 20, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
             transition={{ delay: 0.7 }}
           >
-            {exampleSentence}
-          </motion.p>
+            <p className="text-sm font-bold text-slate-400 mb-2">例句</p>
+            <p className="text-lg leading-relaxed text-gray-600 italic px-2">
+              {exampleSentence}
+            </p>
+            <motion.button
+              className="mt-3 inline-flex items-center gap-2 rounded-full bg-sky-50 px-5 py-2 text-base font-bold text-sky-600 active:bg-sky-100"
+              whileTap={{ scale: 0.95 }}
+              onClick={() => speakText(exampleSentence, 'en-US', 0.8)}
+              aria-label="朗读例句"
+            >
+              🔊 听例句
+            </motion.button>
+          </motion.div>
         )}
 
-        {/* Proceed button */}
         <motion.div
           className="mt-4 w-full"
           initial={{ y: 20, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
           transition={{ delay: 0.9 }}
         >
-          <KidButton color="purple" size="lg" onClick={onDone}>
-            我记住了!
+          <KidButton color="purple" size="lg" onClick={onDone} disabled={disabled}>
+            {doneLabel}
           </KidButton>
         </motion.div>
       </motion.div>
+  )
+
+  if (embedded) {
+    return (
+      <div className="flex-1 flex items-center justify-center p-4">
+        {card}
+      </div>
+    )
+  }
+
+  return (
+    <motion.div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-indigo-50/80 backdrop-blur-sm"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+    >
+      {card}
     </motion.div>
   )
 }

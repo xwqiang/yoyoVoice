@@ -5,11 +5,12 @@ import { Card } from '../../components/Card'
 import type { Child, CustomList, DailyPlan } from '../../types'
 
 const MODULE_LABELS: Record<string, string> = {
+  learn: '学习',
   meaning: '释义',
   spelling: '拼写',
   pronunciation: '发音',
 }
-const MODULE_ORDER = ['meaning', 'spelling', 'pronunciation'] as const
+const MODULE_ORDER = ['learn', 'meaning', 'spelling', 'pronunciation'] as const
 type PlanGenerateMode = 'quota' | 'full_list'
 
 export function PlansPage() {
@@ -202,6 +203,46 @@ export function PlansPage() {
           <Card>
             <h3 className="font-bold mb-3">生成今日计划</h3>
             <div className="space-y-4">
+              <div className="flex gap-4 flex-wrap items-end">
+                <div className={useAllCustomWords ? 'opacity-50' : undefined}>
+                  <label className={`text-sm ${useAllCustomWords ? 'text-slate-400' : 'text-slate-500'}`}>
+                    新词数
+                  </label>
+                  <input
+                    type="number"
+                    value={newWords}
+                    onChange={(e) => setNewWords(Number(e.target.value))}
+                    className={`block w-24 px-3 py-2 rounded-lg border mt-1 ${
+                      useAllCustomWords ? 'bg-slate-100 text-slate-400 cursor-not-allowed' : ''
+                    }`}
+                    min={1}
+                    max={30}
+                    disabled={useAllCustomWords}
+                  />
+                </div>
+                <div className={useAllCustomWords ? 'opacity-50' : undefined}>
+                  <label className={`text-sm ${useAllCustomWords ? 'text-slate-400' : 'text-slate-500'}`}>
+                    复习词数
+                  </label>
+                  <input
+                    type="number"
+                    value={reviewWords}
+                    onChange={(e) => setReviewWords(Number(e.target.value))}
+                    className={`block w-24 px-3 py-2 rounded-lg border mt-1 ${
+                      useAllCustomWords ? 'bg-slate-100 text-slate-400 cursor-not-allowed' : ''
+                    }`}
+                    min={0}
+                    max={20}
+                    disabled={useAllCustomWords}
+                  />
+                </div>
+                {!useAllCustomWords && (
+                  <p className="text-xs text-slate-500 pb-2">
+                    默认读取孩子档案中的每日配额；生成计划时会保存此处修改
+                  </p>
+                )}
+              </div>
+
               <fieldset className="space-y-2">
                 <legend className="text-sm font-medium text-slate-700">生成方式</legend>
                 <label className="flex items-start gap-2 text-sm text-slate-700 cursor-pointer">
@@ -228,43 +269,15 @@ export function PlansPage() {
                     className="mt-0.5"
                   />
                   <span>
-                    <span className="font-medium">词表全量生成</span>
+                    <span className="font-medium">自定义词表全量生成</span>
                     <span className="block text-slate-500 text-xs mt-0.5">
-                      将所选自定义词表中的全部单词纳入今日计划
+                      将所选词表中的全部单词纳入今日计划，上方新词数与复习词数不生效
                     </span>
                   </span>
                 </label>
               </fieldset>
 
-              {generateMode === 'quota' ? (
-                <div className="flex gap-4 flex-wrap items-end">
-                  <div>
-                    <label className="text-sm text-slate-500">新词数</label>
-                    <input
-                      type="number"
-                      value={newWords}
-                      onChange={(e) => setNewWords(Number(e.target.value))}
-                      className="block w-24 px-3 py-2 rounded-lg border mt-1"
-                      min={1}
-                      max={30}
-                    />
-                  </div>
-                  <div>
-                    <label className="text-sm text-slate-500">复习词数</label>
-                    <input
-                      type="number"
-                      value={reviewWords}
-                      onChange={(e) => setReviewWords(Number(e.target.value))}
-                      className="block w-24 px-3 py-2 rounded-lg border mt-1"
-                      min={0}
-                      max={20}
-                    />
-                  </div>
-                  <p className="text-xs text-slate-500 pb-2">
-                    今日最多安排 {newWords} 个新词 + {reviewWords} 个复习词（每词 3 个模块）
-                  </p>
-                </div>
-              ) : (
+              {generateMode === 'full_list' && (
                 <div className="space-y-2">
                   <div>
                     <label className="text-sm text-slate-500">词表</label>
@@ -283,10 +296,16 @@ export function PlansPage() {
                   </div>
                   <p className="text-xs text-slate-500">
                     {selectedCustomList
-                      ? `将生成「${selectedCustomList.name}」中的全部 ${selectedCustomList.word_count} 个单词，共 ${selectedCustomList.word_count * 3} 项模块任务。此模式下不使用新词数与复习词数。`
-                      : '请选择词表。全量模式下会忽略新词数与复习词数，将词表内全部单词纳入今日计划。'}
+                      ? `将生成「${selectedCustomList.name}」中的全部 ${selectedCustomList.word_count} 个单词，共 ${selectedCustomList.word_count * 3} 项模块任务。`
+                      : '请选择要全量生成的自定义词表。'}
                   </p>
                 </div>
+              )}
+
+              {generateMode === 'quota' && (
+                <p className="text-xs text-slate-500">
+                  今日最多安排 {newWords} 个新词 + {reviewWords} 个复习词（每词 3 个模块）
+                </p>
               )}
 
               <Button onClick={handleGenerate} disabled={loading}>

@@ -5,6 +5,22 @@ from pydantic import BaseModel, Field
 from app.schemas.word import WordResponse
 
 
+class LearnCompleteRequest(BaseModel):
+    child_id: int
+    word_id: int
+    plan_item_id: Optional[int] = None
+    duration_ms: Optional[int] = None
+
+
+class LearnCardResponse(BaseModel):
+    word_id: int
+    word_en: str
+    meaning_zh: Optional[str] = None
+    phonetic: Optional[str] = None
+    example_sentence: Optional[str] = None
+    plan_item_id: Optional[int] = None
+
+
 class MeaningCheckRequest(BaseModel):
     child_id: int
     word_id: int

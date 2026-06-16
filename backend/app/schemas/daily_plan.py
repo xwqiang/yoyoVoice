@@ -40,7 +40,7 @@ class GeneratePlanRequest(BaseModel):
 
 class DailyPlanItemCreate(BaseModel):
     word_id: int
-    module_type: str = Field(pattern="^(meaning|spelling|pronunciation)$")
+    module_type: str = Field(pattern="^(learn|meaning|spelling|pronunciation)$")
     is_review: int = 0
 
 
