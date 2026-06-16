@@ -80,6 +80,7 @@ export async function pickNextWord(
   moduleType: ModuleType,
   excludeItemIds: number[] = [],
   existingPlan?: DailyPlan | null,
+  excludeWordIds: number[] = [],
 ): Promise<{ wordId: number; planItemId?: number; fromPlan: boolean } | null> {
   const plan = existingPlan !== undefined ? existingPlan : await api.dailyPlans.today(childId)
   const pool = await api.children.wordPool(childId)
@@ -99,8 +100,11 @@ export async function pickNextWord(
     return { wordId: item.word_id, planItemId: item.id, fromPlan: true }
   }
 
-  const word = pool[Math.floor(Math.random() * pool.length)]
-  return { wordId: word.id, fromPlan: false }
+  const excludeSet = new Set(excludeWordIds)
+  const remaining = pool.filter((w) => !excludeSet.has(w.id))
+  if (remaining.length === 0) return null
+
+  return { wordId: remaining[0].id, fromPlan: false }
 }
 
 export function goToModuleHome(childId: string | number, navigate: NavigateFunction) {

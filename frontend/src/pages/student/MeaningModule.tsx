@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { AnimatePresence, motion } from 'framer-motion'
 import { api } from '../../api/client'
@@ -49,6 +49,7 @@ export function MeaningModule() {
   const [celebrationLevelUp, setCelebrationLevelUp] = useState(false)
   const [achievementQueue, setAchievementQueue] = useState<AchievementData[]>([])
   const [currentAchievement, setCurrentAchievement] = useState<AchievementData | null>(null)
+  const practicedWordIds = useRef<number[]>([])
 
   const loadNext = useCallback(async () => {
     if (!childId) return
@@ -70,7 +71,7 @@ export function MeaningModule() {
       setPlan(p)
       setPoolSize(pool.length)
 
-      const next = await pickNextWord(id, 'meaning', [], p)
+      const next = await pickNextWord(id, 'meaning', [], p, practicedWordIds.current)
       if (!next) {
         setFinished(true)
         return
@@ -141,6 +142,7 @@ export function MeaningModule() {
         playCorrectSound()
         triggerCelebration(res.gamification)
         setTimeout(async () => {
+          practicedWordIds.current = [...practicedWordIds.current, wordId]
           setSessionDone((n) => n + 1)
           setShowCelebration(false)
           await loadNext()

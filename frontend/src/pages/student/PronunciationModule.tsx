@@ -55,6 +55,7 @@ export function PronunciationModule() {
   const [celebrationLevelUp, setCelebrationLevelUp] = useState(false)
   const [achievementQueue, setAchievementQueue] = useState<AchievementData[]>([])
   const [currentAchievement, setCurrentAchievement] = useState<AchievementData | null>(null)
+  const practicedWordIds = useRef<number[]>([])
 
   const loadNext = useCallback(async () => {
     if (!childId) return
@@ -75,7 +76,7 @@ export function PronunciationModule() {
       setPlan(p)
       setPoolSize(pool.length)
 
-      const next = await pickNextWord(id, 'pronunciation', [], p)
+      const next = await pickNextWord(id, 'pronunciation', [], p, practicedWordIds.current)
       if (!next) {
         setFinished(true)
         return
@@ -171,6 +172,7 @@ export function PronunciationModule() {
       if (s >= 2) {
         playCorrectSound()
         triggerCelebration(data.gamification)
+        practicedWordIds.current = [...practicedWordIds.current, wordId]
         setSessionDone((n) => n + 1)
         setTimeout(() => {
           setShowCelebration(false)

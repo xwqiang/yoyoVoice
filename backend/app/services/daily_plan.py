@@ -16,6 +16,7 @@ from app.models import (
     LearningAttempt,
     Word,
 )
+from app.models.word_mastery import WordMastery
 
 
 MODULE_TYPES = ["meaning", "spelling", "pronunciation"]
@@ -72,6 +73,19 @@ def get_mastered_word_ids(db: Session, child: Child) -> set[int]:
             except json.JSONDecodeError:
                 pass
     return mastered
+
+
+def get_introduced_word_ids(db: Session, child: Child) -> set[int]:
+    """Words the child has already practiced — exclude from daily 'new word' picks."""
+    pool_ids = get_pool_word_ids(db, child)
+    if not pool_ids:
+        return set()
+    rows = (
+        db.query(WordMastery.word_id)
+        .filter(WordMastery.child_id == child.id, WordMastery.word_id.in_(pool_ids))
+        .all()
+    )
+    return {row[0] for row in rows}
 
 
 def _word_recently_correct(db: Session, child_id: int, word_id: int, since_days: int = 7) -> bool:
@@ -140,7 +154,8 @@ def get_new_words(db: Session, child: Child, limit: int, exclude_ids: set[int] |
         return []
     pool = get_child_word_pool(db, child)
     mastered = get_mastered_word_ids(db, child)
-    skip = mastered | (exclude_ids or set())
+    introduced = get_introduced_word_ids(db, child)
+    skip = mastered | introduced | (exclude_ids or set())
     new_words = [w for w in pool if w.id not in skip]
     return new_words[:limit]
 
