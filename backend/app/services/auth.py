@@ -2,11 +2,11 @@ from datetime import datetime, timedelta, timezone
 
 from jose import JWTError, jwt
 from passlib.context import CryptContext
-from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.config import settings
 from app.models import Account, User
+from app.models.roles import ROLE_PARENT
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 ALGORITHM = "HS256"
@@ -35,33 +35,34 @@ def decode_token(token: str) -> int | None:
         return None
 
 
-def register_user(
-    db: Session, email: str, password: str, display_name: str, account_name: str
+def create_parent_user(
+    db: Session,
+    username: str,
+    password: str,
+    display_name: str,
+    account_name: str,
 ) -> User:
-    existing = db.query(User).filter(User.email == email).first()
-    if existing:
-        raise ValueError("该邮箱已注册")
+    username = username.strip()
+    if db.query(User).filter(User.username == username).first():
+        raise ValueError("该用户名已存在")
     account = Account(name=account_name)
     db.add(account)
     db.flush()
     user = User(
         account_id=account.id,
-        email=email,
+        username=username,
         hashed_password=hash_password(password),
         display_name=display_name,
+        role=ROLE_PARENT,
     )
     db.add(user)
-    try:
-        db.commit()
-    except IntegrityError:
-        db.rollback()
-        raise ValueError("该邮箱已注册")
+    db.commit()
     db.refresh(user)
     return user
 
 
-def authenticate_user(db: Session, email: str, password: str) -> User | None:
-    user = db.query(User).filter(User.email == email).first()
+def authenticate_user(db: Session, username: str, password: str) -> User | None:
+    user = db.query(User).filter(User.username == username).first()
     if not user or not verify_password(password, user.hashed_password):
         return None
     return user

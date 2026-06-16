@@ -6,17 +6,15 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
-from app.api import ai, auth, children, courses, daily_plans, learning, stats, words
+from app.api import ai, auth, children, courses, daily_plans, learning, stats, users, words
 from app.config import settings
 from app.db.base import Base
 from app.db.session import engine
 from app.seed.run_seed import run_seed
 
-Base.metadata.create_all(bind=engine)
-
-
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    Base.metadata.create_all(bind=engine)
     run_seed()
     yield
 
@@ -32,6 +30,7 @@ app.add_middleware(
 )
 
 app.include_router(auth.router)
+app.include_router(users.router)
 app.include_router(children.router)
 app.include_router(courses.router)
 app.include_router(words.router)

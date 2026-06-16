@@ -1,7 +1,12 @@
 from sqlalchemy.orm import Session
 
 from app.db.session import SessionLocal
-from app.models import Course, CourseWord, Word
+from app.models import Account, Course, CourseWord, User, Word
+from app.models.roles import ROLE_ADMIN
+from app.services.auth import hash_password
+
+ADMIN_USERNAME = "admin"
+ADMIN_PASSWORD = "123456"
 
 ANIMALS = [
     ("cat", "猫", "/kæt/", "The cat is sleeping."),
@@ -47,9 +52,27 @@ def _seed_course(db: Session, title: str, description: str, words_data: list, so
         db.add(CourseWord(course_id=course.id, word_id=word.id, unit="Unit 1", sort_order=i))
 
 
+def _seed_admin(db: Session):
+    if db.query(User).filter(User.username == ADMIN_USERNAME).first():
+        return
+    account = Account(name="系统管理")
+    db.add(account)
+    db.flush()
+    db.add(
+        User(
+            account_id=account.id,
+            username=ADMIN_USERNAME,
+            hashed_password=hash_password(ADMIN_PASSWORD),
+            display_name="管理员",
+            role=ROLE_ADMIN,
+        )
+    )
+
+
 def run_seed():
     db = SessionLocal()
     try:
+        _seed_admin(db)
         _seed_course(db, "动物单词", "学习常见动物的英文名称", ANIMALS, 1)
         _seed_course(db, "颜色单词", "学习基本颜色的英文名称", COLORS, 2)
         db.commit()

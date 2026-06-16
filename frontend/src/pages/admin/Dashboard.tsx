@@ -1,17 +1,48 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
+import { useAuth } from '../../context/AuthContext'
 import { api } from '../../api/client'
 import { Card } from '../../components/Card'
-import type { Child, Course } from '../../types'
+import type { Child, Course, ParentUser } from '../../types'
 
 export function AdminDashboard() {
+  const { user } = useAuth()
   const [children, setChildren] = useState<Child[]>([])
   const [courses, setCourses] = useState<Course[]>([])
+  const [parents, setParents] = useState<ParentUser[]>([])
 
   useEffect(() => {
+    if (user?.role === 'admin') {
+      api.users.list().then(setParents).catch(console.error)
+      return
+    }
     api.children.list().then(setChildren).catch(console.error)
     api.courses.list().then(setCourses).catch(console.error)
-  }, [])
+  }, [user?.role])
+
+  if (user?.role === 'admin') {
+    return (
+      <div className="space-y-6">
+        <h2 className="text-2xl font-bold">系统管理</h2>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <Card>
+            <p className="text-slate-500 text-sm">家长账号</p>
+            <p className="text-3xl font-bold text-indigo-600">{parents.length}</p>
+          </Card>
+        </div>
+        <Card>
+          <h3 className="font-bold text-lg mb-4">快捷操作</h3>
+          <Link
+            to="/admin/users"
+            className="block p-4 bg-indigo-50 rounded-xl text-center hover:bg-indigo-100"
+          >
+            <span className="text-2xl">👤</span>
+            <p className="font-medium mt-1">管理家长账号</p>
+          </Link>
+        </Card>
+      </div>
+    )
+  }
 
   return (
     <div className="space-y-6">

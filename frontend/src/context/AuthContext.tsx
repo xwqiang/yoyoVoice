@@ -5,8 +5,7 @@ import type { User } from '../types'
 interface AuthContextType {
   user: User | null
   loading: boolean
-  login: (email: string, password: string) => Promise<void>
-  register: (email: string, password: string, displayName?: string) => Promise<void>
+  login: (username: string, password: string) => Promise<void>
   logout: () => void
 }
 
@@ -24,14 +23,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [])
 
-  const login = async (email: string, password: string) => {
-    const { access_token } = await api.login({ email, password })
-    setToken(access_token)
-    setUser(await api.me())
-  }
-
-  const register = async (email: string, password: string, displayName = '家长') => {
-    const { access_token } = await api.register({ email, password, display_name: displayName })
+  const login = async (username: string, password: string) => {
+    const { access_token } = await api.login({ username, password })
     setToken(access_token)
     setUser(await api.me())
   }
@@ -42,7 +35,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, register, logout }}>
+    <AuthContext.Provider value={{ user, loading, login, logout }}>
       {children}
     </AuthContext.Provider>
   )

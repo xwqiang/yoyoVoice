@@ -5,12 +5,11 @@ import { Button } from '../components/Button'
 import { Card } from '../components/Card'
 
 export function LoginPage() {
-  const [isRegister, setIsRegister] = useState(false)
-  const [email, setEmail] = useState('')
+  const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
-  const { login, register } = useAuth()
+  const { login } = useAuth()
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const from = searchParams.get('from')
@@ -21,14 +20,10 @@ export function LoginPage() {
     setError('')
     setLoading(true)
     try {
-      if (isRegister) {
-        await register(email, password)
-      } else {
-        await login(email, password)
-      }
+      await login(username, password)
       navigate(redirectTo)
     } catch (err) {
-      setError(err instanceof Error ? err.message : '操作失败')
+      setError(err instanceof Error ? err.message : '登录失败')
     } finally {
       setLoading(false)
     }
@@ -44,12 +39,13 @@ export function LoginPage() {
         </div>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">邮箱</label>
+            <label className="block text-sm font-medium text-slate-700 mb-1">用户名</label>
             <input
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              type="text"
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
               className="w-full px-4 py-3 rounded-xl border border-slate-300 text-lg"
+              placeholder="admin"
               required
             />
           </div>
@@ -66,18 +62,11 @@ export function LoginPage() {
           </div>
           {error && <p className="text-red-500 text-sm">{error}</p>}
           <Button type="submit" size="lg" className="w-full" disabled={loading}>
-            {loading ? '请稍候...' : isRegister ? '注册' : '登录'}
+            {loading ? '请稍候...' : '登录'}
           </Button>
         </form>
         <p className="text-center mt-4 text-sm text-slate-500">
-          {isRegister ? '已有账号？' : '没有账号？'}
-          <button
-            type="button"
-            className="text-indigo-600 font-medium ml-1"
-            onClick={() => setIsRegister(!isRegister)}
-          >
-            {isRegister ? '去登录' : '去注册'}
-          </button>
+          家长账号由管理员创建
         </p>
         <div className="mt-6 text-center">
           <Link to="/learn" className="text-indigo-600 text-sm font-medium">

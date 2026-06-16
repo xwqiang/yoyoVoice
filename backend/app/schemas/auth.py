@@ -1,16 +1,18 @@
-from pydantic import BaseModel, EmailStr, Field
+from datetime import datetime
 
-
-class RegisterRequest(BaseModel):
-    email: EmailStr
-    password: str = Field(min_length=6)
-    display_name: str = Field(default="家长", max_length=100)
-    account_name: str = Field(default="我的家庭", max_length=100)
+from pydantic import BaseModel, Field
 
 
 class LoginRequest(BaseModel):
-    email: EmailStr
+    username: str = Field(min_length=1, max_length=100)
     password: str
+
+
+class CreateParentRequest(BaseModel):
+    username: str = Field(min_length=2, max_length=100)
+    password: str = Field(min_length=6)
+    display_name: str = Field(default="家长", max_length=100)
+    account_name: str = Field(default="我的家庭", max_length=100)
 
 
 class TokenResponse(BaseModel):
@@ -20,8 +22,19 @@ class TokenResponse(BaseModel):
 
 class UserResponse(BaseModel):
     id: int
-    email: str
+    username: str
     display_name: str
     account_id: int
+    role: str
+
+    model_config = {"from_attributes": True}
+
+
+class ParentUserResponse(BaseModel):
+    id: int
+    username: str
+    display_name: str
+    account_id: int
+    created_at: datetime
 
     model_config = {"from_attributes": True}

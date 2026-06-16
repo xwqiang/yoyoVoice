@@ -2,17 +2,24 @@ import { Link, Outlet, useLocation } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { Button } from './Button'
 
+const PARENT_NAV = [
+  { to: '/admin', label: '首页' },
+  { to: '/admin/children', label: '孩子管理' },
+  { to: '/admin/plans', label: '学习计划' },
+  { to: '/admin/words', label: '词表管理' },
+  { to: '/admin/ai', label: 'AI 助手' },
+]
+
+const ADMIN_NAV = [
+  { to: '/admin', label: '首页' },
+  { to: '/admin/users', label: '账号管理' },
+]
+
 export function AdminLayout() {
   const { user, logout } = useAuth()
   const location = useLocation()
-
-  const nav = [
-    { to: '/admin', label: '首页' },
-    { to: '/admin/children', label: '孩子管理' },
-    { to: '/admin/plans', label: '学习计划' },
-    { to: '/admin/words', label: '词表管理' },
-    { to: '/admin/ai', label: 'AI 助手' },
-  ]
+  const isAdmin = user?.role === 'admin'
+  const nav = isAdmin ? ADMIN_NAV : PARENT_NAV
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -21,13 +28,17 @@ export function AdminLayout() {
           <span className="text-2xl">🎤</span>
           <div>
             <h1 className="font-bold text-lg text-indigo-600">yoyoVoice</h1>
-            <p className="text-xs text-slate-500">{user?.display_name} · 管理端</p>
+            <p className="text-xs text-slate-500">
+              {user?.display_name} · {isAdmin ? '系统管理' : '家长端'}
+            </p>
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <Link to="/learn">
-            <Button variant="secondary" size="sm">学生端</Button>
-          </Link>
+          {!isAdmin && (
+            <Link to="/learn">
+              <Button variant="secondary" size="sm">学生端</Button>
+            </Link>
+          )}
           <Button variant="secondary" size="sm" onClick={logout}>退出</Button>
         </div>
       </header>

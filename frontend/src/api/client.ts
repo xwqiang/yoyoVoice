@@ -10,6 +10,7 @@ import type {
   PronunciationResult,
   Recommendation,
   SpellingQuiz,
+  ParentUser,
   User,
   WeeklyReport,
   Word,
@@ -64,13 +65,21 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
 }
 
 export const api = {
-  register: (body: { email: string; password: string; display_name?: string }) =>
-    request<{ access_token: string }>('/api/auth/register', { method: 'POST', body: JSON.stringify(body) }),
-
-  login: (body: { email: string; password: string }) =>
+  login: (body: { username: string; password: string }) =>
     request<{ access_token: string }>('/api/auth/login', { method: 'POST', body: JSON.stringify(body) }),
 
   me: () => request<User>('/api/auth/me'),
+
+  users: {
+    list: () => request<ParentUser[]>('/api/users'),
+    create: (body: {
+      username: string
+      password: string
+      display_name?: string
+      account_name?: string
+    }) => request<ParentUser>('/api/users', { method: 'POST', body: JSON.stringify(body) }),
+    delete: (id: number) => request<void>(`/api/users/${id}`, { method: 'DELETE' }),
+  },
 
   children: {
     list: () => request<Child[]>('/api/children'),

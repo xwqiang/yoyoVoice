@@ -1,8 +1,17 @@
 export interface User {
   id: number
-  email: string
+  username: string
   display_name: string
   account_id: number
+  role: string
+}
+
+export interface ParentUser {
+  id: number
+  username: string
+  display_name: string
+  account_id: number
+  created_at: string
 }
 
 export interface Child {
