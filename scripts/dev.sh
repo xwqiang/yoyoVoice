@@ -3,6 +3,23 @@ set -e
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
+if ! command -v node >/dev/null 2>&1 || ! node -e '
+const [major, minor] = process.versions.node.split(".").map(Number);
+const ok =
+  (major === 20 && minor >= 19) ||
+  (major === 22 && minor >= 12) ||
+  major > 22;
+if (!ok) process.exit(1);
+'; then
+  cat >&2 <<EOF
+ERROR: Node.js $(node -v 2>/dev/null || echo "not installed") is too old. Vite requires 20.19+ or 22.12+.
+
+  curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash -
+  sudo apt install -y nodejs
+EOF
+  exit 1
+fi
+
 # shellcheck source=ensure-venv.sh
 source "$ROOT/scripts/ensure-venv.sh"
 
