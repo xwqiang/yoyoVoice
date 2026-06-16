@@ -10,6 +10,7 @@ const MODULE_LABELS: Record<string, string> = {
   pronunciation: '发音',
 }
 const MODULE_ORDER = ['meaning', 'spelling', 'pronunciation'] as const
+type PlanGenerateMode = 'quota' | 'full_list'
 
 export function PlansPage() {
   const [children, setChildren] = useState<Child[]>([])
@@ -19,7 +20,7 @@ export function PlansPage() {
   const [error, setError] = useState('')
   const [newWords, setNewWords] = useState(5)
   const [reviewWords, setReviewWords] = useState(3)
-  const [useAllCustomWords, setUseAllCustomWords] = useState(false)
+  const [generateMode, setGenerateMode] = useState<PlanGenerateMode>('quota')
   const [customLists, setCustomLists] = useState<CustomList[]>([])
   const [selectedCustomListId, setSelectedCustomListId] = useState<number | null>(null)
   const loadSeq = useRef(0)
@@ -52,7 +53,7 @@ export function PlansPage() {
     if (child) {
       setNewWords(child.daily_new_words)
       setReviewWords(child.daily_review_words)
-      setUseAllCustomWords(false)
+      setGenerateMode('quota')
     }
     setPlan(null)
     setError('')
@@ -71,6 +72,9 @@ export function PlansPage() {
     }
   }
 
+  const useAllCustomWords = generateMode === 'full_list'
+  const selectedCustomList = customLists.find((list) => list.id === selectedCustomListId)
+
   const handleGenerate = async () => {
     if (!selectedChild) return
     if (useAllCustomWords && !selectedCustomListId) {
@@ -87,20 +91,23 @@ export function PlansPage() {
     setLoading(true)
     setError('')
     try {
-      await api.children.update(selectedChild, {
-        daily_new_words: newWords,
-        daily_review_words: reviewWords,
-      })
-      setChildren((prev) =>
-        prev.map((c) =>
-          c.id === selectedChild
-            ? { ...c, daily_new_words: newWords, daily_review_words: reviewWords }
-            : c
+      if (!useAllCustomWords) {
+        await api.children.update(selectedChild, {
+          daily_new_words: newWords,
+          daily_review_words: reviewWords,
+        })
+        setChildren((prev) =>
+          prev.map((c) =>
+            c.id === selectedChild
+              ? { ...c, daily_new_words: newWords, daily_review_words: reviewWords }
+              : c
+          )
         )
-      )
+      }
       const p = await api.dailyPlans.generate(selectedChild, {
-        new_words: newWords,
-        review_words: reviewWords,
+        ...(useAllCustomWords
+          ? {}
+          : { new_words: newWords, review_words: reviewWords }),
         use_all_custom_words: useAllCustomWords,
         custom_list_id: useAllCustomWords ? selectedCustomListId ?? undefined : undefined,
         force: !!hasProgress || !!plan,
@@ -194,56 +201,94 @@ export function PlansPage() {
         <>
           <Card>
             <h3 className="font-bold mb-3">生成今日计划</h3>
-            <div className="flex gap-4 flex-wrap items-end">
-              <div>
-                <label className="text-sm text-slate-500">新词数</label>
-                <input
-                  type="number"
-                  value={newWords}
-                  onChange={(e) => setNewWords(Number(e.target.value))}
-                  className="block w-24 px-3 py-2 rounded-lg border mt-1"
-                  min={1}
-                  max={30}
-                  disabled={useAllCustomWords}
-                />
-              </div>
-              <div>
-                <label className="text-sm text-slate-500">复习词数</label>
-                <input
-                  type="number"
-                  value={reviewWords}
-                  onChange={(e) => setReviewWords(Number(e.target.value))}
-                  className="block w-24 px-3 py-2 rounded-lg border mt-1"
-                  min={0}
-                  max={20}
-                  disabled={useAllCustomWords}
-                />
-              </div>
-              <label className="flex items-center gap-2 text-sm text-slate-600">
-                <input
-                  type="checkbox"
-                  checked={useAllCustomWords}
-                  onChange={(e) => setUseAllCustomWords(e.target.checked)}
-                />
-                自定义词表全量生成（可选择词表）
-              </label>
-              {useAllCustomWords && (
-                <div>
-                  <label className="text-sm text-slate-500">词表</label>
-                  <select
-                    value={selectedCustomListId ?? ''}
-                    onChange={(e) => setSelectedCustomListId(e.target.value ? Number(e.target.value) : null)}
-                    className="block min-w-[220px] px-3 py-2 rounded-lg border mt-1 bg-white"
-                  >
-                    <option value="">请选择词表</option>
-                    {customLists.map((list) => (
-                      <option key={list.id} value={list.id}>
-                        {list.name} ({list.word_count})
-                      </option>
-                    ))}
-                  </select>
+            <div className="space-y-4">
+              <fieldset className="space-y-2">
+                <legend className="text-sm font-medium text-slate-700">生成方式</legend>
+                <label className="flex items-start gap-2 text-sm text-slate-700 cursor-pointer">
+                  <input
+                    type="radio"
+                    name="plan-generate-mode"
+                    checked={generateMode === 'quota'}
+                    onChange={() => setGenerateMode('quota')}
+                    className="mt-0.5"
+                  />
+                  <span>
+                    <span className="font-medium">按每日配额</span>
+                    <span className="block text-slate-500 text-xs mt-0.5">
+                      从当前学习词池选取新词与到期复习词
+                    </span>
+                  </span>
+                </label>
+                <label className="flex items-start gap-2 text-sm text-slate-700 cursor-pointer">
+                  <input
+                    type="radio"
+                    name="plan-generate-mode"
+                    checked={generateMode === 'full_list'}
+                    onChange={() => setGenerateMode('full_list')}
+                    className="mt-0.5"
+                  />
+                  <span>
+                    <span className="font-medium">词表全量生成</span>
+                    <span className="block text-slate-500 text-xs mt-0.5">
+                      将所选自定义词表中的全部单词纳入今日计划
+                    </span>
+                  </span>
+                </label>
+              </fieldset>
+
+              {generateMode === 'quota' ? (
+                <div className="flex gap-4 flex-wrap items-end">
+                  <div>
+                    <label className="text-sm text-slate-500">新词数</label>
+                    <input
+                      type="number"
+                      value={newWords}
+                      onChange={(e) => setNewWords(Number(e.target.value))}
+                      className="block w-24 px-3 py-2 rounded-lg border mt-1"
+                      min={1}
+                      max={30}
+                    />
+                  </div>
+                  <div>
+                    <label className="text-sm text-slate-500">复习词数</label>
+                    <input
+                      type="number"
+                      value={reviewWords}
+                      onChange={(e) => setReviewWords(Number(e.target.value))}
+                      className="block w-24 px-3 py-2 rounded-lg border mt-1"
+                      min={0}
+                      max={20}
+                    />
+                  </div>
+                  <p className="text-xs text-slate-500 pb-2">
+                    今日最多安排 {newWords} 个新词 + {reviewWords} 个复习词（每词 3 个模块）
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  <div>
+                    <label className="text-sm text-slate-500">词表</label>
+                    <select
+                      value={selectedCustomListId ?? ''}
+                      onChange={(e) => setSelectedCustomListId(e.target.value ? Number(e.target.value) : null)}
+                      className="block min-w-[220px] px-3 py-2 rounded-lg border mt-1 bg-white"
+                    >
+                      <option value="">请选择词表</option>
+                      {customLists.map((list) => (
+                        <option key={list.id} value={list.id}>
+                          {list.name} ({list.word_count} 词)
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <p className="text-xs text-slate-500">
+                    {selectedCustomList
+                      ? `将生成「${selectedCustomList.name}」中的全部 ${selectedCustomList.word_count} 个单词，共 ${selectedCustomList.word_count * 3} 项模块任务。此模式下不使用新词数与复习词数。`
+                      : '请选择词表。全量模式下会忽略新词数与复习词数，将词表内全部单词纳入今日计划。'}
+                  </p>
                 </div>
               )}
+
               <Button onClick={handleGenerate} disabled={loading}>
                 {loading ? '生成中...' : plan ? '重新生成' : '生成今日计划'}
               </Button>
