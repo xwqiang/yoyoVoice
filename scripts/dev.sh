@@ -35,8 +35,18 @@ if [ "$needs_install" = 1 ]; then
   install_venv_deps "$ROOT/backend/.venv" "$ROOT/backend/requirements.txt" --only-binary=cursor-sdk
 fi
 
-if [ ! -d "frontend/node_modules" ]; then
-  cd frontend && npm install && cd ..
+frontend_ok() {
+  (cd "$ROOT/frontend" && node -e "import('vite').then(() => process.exit(0)).catch(() => process.exit(1))" 2>/dev/null)
+}
+
+if [ ! -d "$ROOT/frontend/node_modules" ] || ! frontend_ok; then
+  if [ -d "$ROOT/frontend/node_modules" ]; then
+    echo "Reinstalling frontend dependencies (rolldown native binding missing)..."
+    rm -rf "$ROOT/frontend/node_modules"
+  else
+    echo "Installing frontend dependencies..."
+  fi
+  (cd "$ROOT/frontend" && npm ci)
 fi
 
 trap 'kill 0' EXIT
