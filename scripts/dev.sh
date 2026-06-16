@@ -3,9 +3,19 @@ set -e
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
-if [ ! -d "backend/.venv" ]; then
-  python3 -m venv backend/.venv
-  backend/.venv/bin/pip install -r backend/requirements.txt --only-binary=cursor-sdk
+# shellcheck source=ensure-venv.sh
+source "$ROOT/scripts/ensure-venv.sh"
+
+venv_py="$ROOT/backend/.venv/bin/python3"
+needs_install=0
+if [ ! -x "$venv_py" ] || ! "$venv_py" -c "import sys" 2>/dev/null; then
+  needs_install=1
+fi
+
+ensure_venv "$ROOT/backend/.venv"
+
+if [ "$needs_install" = 1 ]; then
+  install_venv_deps "$ROOT/backend/.venv" "$ROOT/backend/requirements.txt" --only-binary=cursor-sdk
 fi
 
 if [ ! -d "frontend/node_modules" ]; then
