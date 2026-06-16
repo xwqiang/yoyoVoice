@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { motion } from 'framer-motion'
 import { speakText, speakWordWithExample } from '../../utils/studentNav'
 import { KidButton } from './KidButton'
@@ -12,6 +12,8 @@ interface TeachingCardProps {
   embedded?: boolean
   doneLabel?: string
   disabled?: boolean
+  /** 至少停留多少毫秒后才可点「完成」，防止孩子秒点跳过 */
+  minDwellMs?: number
 }
 
 export function TeachingCard({
@@ -23,8 +25,11 @@ export function TeachingCard({
   embedded = false,
   doneLabel = '我记住了!',
   disabled = false,
+  minDwellMs = 0,
 }: TeachingCardProps) {
   const spokenKey = useRef('')
+  const [dwellReady, setDwellReady] = useState(minDwellMs <= 0)
+  const [dwellLeft, setDwellLeft] = useState(0)
 
   useEffect(() => {
     if (!wordEn.trim()) return
@@ -37,6 +42,45 @@ export function TeachingCard({
     }, 300)
     return () => window.clearTimeout(timer)
   }, [wordEn, exampleSentence])
+
+  useEffect(() => {
+    if (minDwellMs <= 0) {
+      setDwellReady(true)
+      setDwellLeft(0)
+      return
+    }
+    setDwellReady(false)
+    const endAt = Date.now() + minDwellMs
+    setDwellLeft(Math.ceil(minDwellMs / 1000))
+
+    const tick = window.setInterval(() => {
+      const left = Math.ceil((endAt - Date.now()) / 1000)
+      if (left <= 0) {
+        setDwellReady(true)
+        setDwellLeft(0)
+      } else {
+        setDwellLeft(left)
+      }
+    }, 250)
+
+    const done = window.setTimeout(() => {
+      setDwellReady(true)
+      setDwellLeft(0)
+    }, minDwellMs)
+
+    return () => {
+      window.clearInterval(tick)
+      window.clearTimeout(done)
+    }
+  }, [wordEn, minDwellMs])
+
+  const buttonLocked = disabled || !dwellReady
+  const buttonLabel =
+    !dwellReady && minDwellMs > 0 ? `认真看一看 ${dwellLeft} 👀` : doneLabel
+  const dwellProgress =
+    minDwellMs > 0 && !dwellReady
+      ? Math.min(100, ((minDwellMs - dwellLeft * 1000) / minDwellMs) * 100)
+      : 100
 
   const card = (
     <motion.div
@@ -114,8 +158,18 @@ export function TeachingCard({
           animate={{ y: 0, opacity: 1 }}
           transition={{ delay: 0.9 }}
         >
-          <KidButton color="purple" size="lg" onClick={onDone} disabled={disabled}>
-            {doneLabel}
+          {minDwellMs > 0 && !dwellReady && (
+            <div className="mb-3 h-2 overflow-hidden rounded-full bg-violet-100">
+              <motion.div
+                className="h-full rounded-full bg-violet-400"
+                initial={{ width: '0%' }}
+                animate={{ width: `${dwellProgress}%` }}
+                transition={{ duration: 0.25, ease: 'linear' }}
+              />
+            </div>
+          )}
+          <KidButton color="purple" size="lg" onClick={onDone} disabled={buttonLocked}>
+            {buttonLabel}
           </KidButton>
         </motion.div>
       </motion.div>

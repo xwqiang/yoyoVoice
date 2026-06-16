@@ -14,6 +14,9 @@ import {
 } from '../../utils/moduleHelpers'
 import type { AchievementData, DailyPlan, GamificationData } from '../../types'
 
+const LEARN_MIN_DWELL_MS = 6000
+const REVIEW_MIN_DWELL_MS = 4000
+
 function resolveLearnPlanItemId(
   plan: DailyPlan | null,
   wordId: number,
@@ -140,6 +143,8 @@ export function LearnModule() {
 
   const handleDone = async () => {
     if (submitting || loading || !childId) return
+    const minDwell = reviewMode ? REVIEW_MIN_DWELL_MS : LEARN_MIN_DWELL_MS
+    if (Date.now() - startTime < minDwell) return
     setSubmitting(true)
     const currentWordId = wordId
     const itemIdToComplete = reviewMode
@@ -239,6 +244,7 @@ export function LearnModule() {
           onDone={handleDone}
           doneLabel={reviewMode ? '下一个' : '我记住了!'}
           disabled={submitting}
+          minDwellMs={reviewMode ? REVIEW_MIN_DWELL_MS : LEARN_MIN_DWELL_MS}
         />
       )}
     </ModuleShell>
