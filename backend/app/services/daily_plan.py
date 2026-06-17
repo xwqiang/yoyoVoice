@@ -175,13 +175,27 @@ def generate_daily_plan(
     new_count = max(0, new_words if new_words is not None else child.daily_new_words)
     review_count = max(0, review_words if review_words is not None else child.daily_review_words)
 
-    if not use_all_custom_words:
-        pool = get_child_word_pool(db, child)
-        if not pool:
-            raise HTTPException(
-                status_code=400,
-                detail="当前没有可用词表，请先为孩子选择课程或自定义词表并添加单词",
-            )
+    if use_all_custom_words:
+        target_list_id = custom_list_id or child.active_custom_list_id
+        if not target_list_id:
+            raise HTTPException(status_code=400, detail="请先选择自定义词表")
+        selected_list = (
+            db.query(CustomWordList)
+            .filter(CustomWordList.id == target_list_id, CustomWordList.child_id == child.id)
+            .first()
+        )
+        if not selected_list:
+            raise HTTPException(status_code=400, detail="所选自定义词表不存在或不属于该孩子")
+        child.learning_mode = "custom"
+        child.active_custom_list_id = target_list_id
+        child.active_course_id = None
+
+    pool = get_child_word_pool(db, child)
+    if not pool:
+        raise HTTPException(
+            status_code=400,
+            detail="当前没有可用词表，请先为孩子选择课程或自定义词表并添加单词",
+        )
 
     existing = (
         db.query(DailyPlan)
@@ -218,31 +232,8 @@ def generate_daily_plan(
             db.query(DailyPlanItem).filter(DailyPlanItem.plan_id == plan.id).delete()
 
     if use_all_custom_words:
-        target_list_id = custom_list_id or child.active_custom_list_id
-        if not target_list_id:
-            raise HTTPException(status_code=400, detail="请先选择自定义词表")
-        selected_list = (
-            db.query(CustomWordList)
-            .filter(CustomWordList.id == target_list_id, CustomWordList.child_id == child.id)
-            .first()
-        )
-        if not selected_list:
-            raise HTTPException(status_code=400, detail="所选自定义词表不存在或不属于该孩子")
-        items = (
-            db.query(CustomWordListItem)
-            .filter(CustomWordListItem.list_id == target_list_id)
-            .order_by(CustomWordListItem.sort_order)
-            .all()
-        )
-        word_ids = [i.word_id for i in items]
-        if not word_ids:
-            raise HTTPException(status_code=400, detail="所选自定义词表暂无单词")
-        words = db.query(Word).filter(Word.id.in_(word_ids)).all()
-        word_map = {w.id: w for w in words}
         review_list = []
-        new_list = [word_map[wid] for wid in word_ids if wid in word_map]
-        if not new_list:
-            raise HTTPException(status_code=400, detail="所选自定义词表暂无可用单词")
+        new_list = pool
     else:
         review_list = get_review_words(db, child, review_count)
         review_ids = {w.id for w in review_list}
@@ -284,6 +275,12 @@ def generate_daily_plan(
                 )
             )
             sort_order += 1
+
+    if sort_order == 0:
+        raise HTTPException(
+            status_code=400,
+            detail="没有可安排的单词，请检查词表内容或调整新词/复习词数量",
+        )
 
     db.commit()
     return get_plan_with_items(db, plan.id)

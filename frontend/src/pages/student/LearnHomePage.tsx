@@ -114,7 +114,7 @@ export function LearnHomePage() {
                 completed={completed}
                 total={total}
                 label={
-                  !hasMoreToLearn && completed >= total
+                  completed >= total
                     ? '今日学习完成 🎉'
                     : `今日进度 · ${completed}/${total}`
                 }
@@ -123,7 +123,7 @@ export function LearnHomePage() {
             </div>
           )}
 
-          {hasMoreToLearn ? (
+          {(hasMoreToLearn || planInProgress) ? (
             <>
               <motion.span className="text-8xl">📚</motion.span>
               <div className="text-center">

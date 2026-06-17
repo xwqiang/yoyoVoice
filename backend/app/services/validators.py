@@ -6,8 +6,7 @@ from app.services.daily_plan import get_child_word_pool
 
 
 def ensure_word_in_pool(db: Session, child: Child, word_id: int) -> Word:
-    pool = get_child_word_pool(db, child)
-    pool_ids = {w.id for w in pool}
+    pool_ids = {w.id for w in get_child_word_pool(db, child)}
     if word_id not in pool_ids:
         raise HTTPException(status_code=400, detail="该单词不在当前学习计划中")
     word = db.query(Word).filter(Word.id == word_id).first()
