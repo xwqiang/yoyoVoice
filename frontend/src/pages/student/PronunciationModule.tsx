@@ -12,6 +12,7 @@ import {
   moduleProgressLabel,
   pickNextWord,
 } from '../../utils/moduleHelpers'
+import { micErrorMessage, recordAudio } from '../../utils/audioRecording'
 import { speakWord } from '../../utils/studentNav'
 import { playCorrectSound, playWrongSound } from '../../utils/sounds'
 import type { AchievementData, DailyPlan, GamificationData } from '../../types'
@@ -43,8 +44,6 @@ export function PronunciationModule() {
   const [reviewMode, setReviewMode] = useState(false)
   const [error, setError] = useState('')
   const [needLearnFirst, setNeedLearnFirst] = useState(false)
-  const mediaRecorder = useRef<MediaRecorder | null>(null)
-  const chunks = useRef<Blob[]>([])
 
   const [showCelebration, setShowCelebration] = useState(false)
   const [celebrationXp, setCelebrationXp] = useState(0)
@@ -138,38 +137,25 @@ export function PronunciationModule() {
     if (recording || submitting || loading) return
     setError('')
     setStars(null)
+    setRecording(true)
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
-      const recorder = new MediaRecorder(stream)
-      chunks.current = []
-      recorder.ondataavailable = (e) => chunks.current.push(e.data)
-      recorder.onstop = async () => {
-        stream.getTracks().forEach((t) => t.stop())
-        const blob = new Blob(chunks.current, { type: 'audio/webm' })
-        await submitAudio(blob)
-      }
-      mediaRecorder.current = recorder
-      recorder.start()
-      setRecording(true)
-      setTimeout(() => {
-        if (recorder.state === 'recording') {
-          recorder.stop()
-          setRecording(false)
-        }
-      }, 4000)
-    } catch {
-      setError('请允许使用麦克风')
+      const { blob, ext } = await recordAudio(4000)
+      setRecording(false)
+      await submitAudio(blob, ext)
+    } catch (err) {
+      setRecording(false)
+      setError(micErrorMessage(err))
     }
   }
 
-  const submitAudio = async (blob: Blob) => {
+  const submitAudio = async (blob: Blob, ext: string) => {
     if (!childId) return
     setSubmitting(true)
     const form = new FormData()
     form.append('child_id', String(childId))
     form.append('word_id', String(wordId))
     if (planItemId && !reviewMode) form.append('plan_item_id', String(planItemId))
-    form.append('audio', blob, 'recording.webm')
+    form.append('audio', blob, `recording.${ext}`)
 
     try {
       const data = await api.learning.pronunciationCheck(form)
