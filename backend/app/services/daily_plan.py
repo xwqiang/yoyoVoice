@@ -175,12 +175,13 @@ def generate_daily_plan(
     new_count = max(0, new_words if new_words is not None else child.daily_new_words)
     review_count = max(0, review_words if review_words is not None else child.daily_review_words)
 
-    pool = get_child_word_pool(db, child)
-    if not pool:
-        raise HTTPException(
-            status_code=400,
-            detail="当前没有可用词表，请先为孩子选择课程或自定义词表并添加单词",
-        )
+    if not use_all_custom_words:
+        pool = get_child_word_pool(db, child)
+        if not pool:
+            raise HTTPException(
+                status_code=400,
+                detail="当前没有可用词表，请先为孩子选择课程或自定义词表并添加单词",
+            )
 
     existing = (
         db.query(DailyPlan)
