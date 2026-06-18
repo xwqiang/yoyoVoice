@@ -15,6 +15,30 @@ MOCK_SCORES = {
 }
 
 
+def _zero_scores(reason: str) -> dict:
+    return {
+        "pronunciation_score": 0.0,
+        "accuracy_score": 0.0,
+        "fluency_score": 0.0,
+        "completeness_score": 0.0,
+        "prosody_score": 0.0,
+        "detail_json": json.dumps({"error": reason}),
+        "error": True,
+    }
+
+
+def _cleanup_temp_files(*paths: Path) -> None:
+    seen: set[Path] = set()
+    for path in paths:
+        if path in seen:
+            continue
+        seen.add(path)
+        try:
+            path.unlink(missing_ok=True)
+        except OSError:
+            pass
+
+
 def _convert_to_wav(input_path: Path) -> Path:
     output = input_path.with_suffix(".wav")
     try:
@@ -45,6 +69,9 @@ def assess_pronunciation(reference_text: str, audio_bytes: bytes, filename: str 
     if not settings.azure_speech_key:
         return {**MOCK_SCORES, "mock": True}
 
+    if not audio_bytes:
+        return _zero_scores("empty audio")
+
     import azure.cognitiveservices.speech as speechsdk
 
     suffix = Path(filename).suffix or ".webm"
@@ -53,47 +80,32 @@ def assess_pronunciation(reference_text: str, audio_bytes: bytes, filename: str 
         tmp_path = Path(tmp.name)
 
     wav_path = _convert_to_wav(tmp_path)
-
-    speech_config = speechsdk.SpeechConfig(
-        subscription=settings.azure_speech_key,
-        region=settings.azure_speech_region,
-    )
-    speech_config.speech_recognition_language = "en-US"
-    audio_config = speechsdk.audio.AudioConfig(filename=str(wav_path))
-
-    pron_config = speechsdk.PronunciationAssessmentConfig(
-        reference_text=reference_text,
-        grading_system=speechsdk.PronunciationAssessmentGradingSystem.HundredMark,
-        granularity=speechsdk.PronunciationAssessmentGranularity.Phoneme,
-        enable_miscue=True,
-    )
-    pron_config.enable_prosody_assessment()
-
-    recognizer = speechsdk.SpeechRecognizer(speech_config=speech_config, audio_config=audio_config)
-    pron_config.apply_to(recognizer)
-    result = recognizer.recognize_once_async().get()
-
-    for p in [tmp_path, wav_path]:
-        try:
-            if p.exists() and p != tmp_path or wav_path != tmp_path:
-                p.unlink(missing_ok=True)
-        except OSError:
-            pass
     try:
-        tmp_path.unlink(missing_ok=True)
-    except OSError:
-        pass
+        speech_config = speechsdk.SpeechConfig(
+            subscription=settings.azure_speech_key,
+            region=settings.azure_speech_region,
+        )
+        speech_config.speech_recognition_language = "en-US"
+        audio_config = speechsdk.audio.AudioConfig(filename=str(wav_path))
+
+        pron_config = speechsdk.PronunciationAssessmentConfig(
+            reference_text=reference_text,
+            grading_system=speechsdk.PronunciationAssessmentGradingSystem.HundredMark,
+            granularity=speechsdk.PronunciationAssessmentGranularity.Phoneme,
+            enable_miscue=True,
+        )
+        pron_config.enable_prosody_assessment()
+
+        recognizer = speechsdk.SpeechRecognizer(speech_config=speech_config, audio_config=audio_config)
+        pron_config.apply_to(recognizer)
+        result = recognizer.recognize_once_async().get()
+    except Exception as exc:
+        return _zero_scores(str(exc))
+    finally:
+        _cleanup_temp_files(tmp_path, wav_path)
 
     if result.reason != speechsdk.ResultReason.RecognizedSpeech:
-        return {
-            "pronunciation_score": 0.0,
-            "accuracy_score": 0.0,
-            "fluency_score": 0.0,
-            "completeness_score": 0.0,
-            "prosody_score": 0.0,
-            "detail_json": json.dumps({"error": str(result.reason)}),
-            "error": True,
-        }
+        return _zero_scores(str(result.reason))
 
     pa = speechsdk.PronunciationAssessmentResult(result)
     detail = {}

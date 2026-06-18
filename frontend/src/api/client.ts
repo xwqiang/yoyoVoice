@@ -51,7 +51,16 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
     throw new Error('登录已过期，请重新登录')
   }
   if (res.status === 204) return undefined as T
-  const data = await res.json().catch(() => ({}))
+  const text = await res.text()
+  const data = text
+    ? (() => {
+        try {
+          return JSON.parse(text) as Record<string, unknown>
+        } catch {
+          return {}
+        }
+      })()
+    : {}
   if (!res.ok) {
     const detail = data.detail
     const message =
@@ -59,7 +68,9 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
         ? detail
         : Array.isArray(detail)
           ? detail.map((d: { msg?: string }) => d.msg).filter(Boolean).join('；')
-          : data.message || '请求失败'
+          : typeof data.message === 'string'
+            ? data.message
+            : text.trim() || res.statusText || '请求失败'
     throw new Error(message)
   }
   return data as T
