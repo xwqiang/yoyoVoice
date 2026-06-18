@@ -124,7 +124,53 @@ def assess_pronunciation(reference_text: str, audio_bytes: bytes, filename: str 
     }
 
 
-def pronunciation_message(score: float) -> str:
+def _feedback_from_detail(scores: dict, score: float) -> str | None:
+    if scores.get("error"):
+        return "没听清你的声音，请靠近麦克风再试一次 🎤"
+
+    try:
+        detail = json.loads(scores.get("detail_json", "{}"))
+    except (json.JSONDecodeError, TypeError):
+        detail = {}
+
+    snr = detail.get("SNR")
+    if snr is not None and snr < 5 and score < 60:
+        return "声音太小或太远，请大声一点、靠近麦克风 🎤"
+
+    nbest = detail.get("NBest") or []
+    if not nbest:
+        if score < 60:
+            return "没听清你的声音，按住按钮大声读出来 🎤"
+        return None
+
+    words = nbest[0].get("Words") or []
+    omissions = [
+        w["Word"]
+        for w in words
+        if w.get("PronunciationAssessment", {}).get("ErrorType") == "Omission"
+    ]
+    if omissions:
+        joined = "、".join(omissions)
+        return f"好像没听到「{joined}」，按住按钮大声读出来 🎤"
+
+    mispronounced = [
+        w["Word"]
+        for w in words
+        if w.get("PronunciationAssessment", {}).get("ErrorType") == "Mispronunciation"
+    ]
+    if mispronounced and score < 60:
+        joined = "、".join(mispronounced)
+        return f"「{joined}」再练一练，听听标准发音 🔊"
+
+    return None
+
+
+def pronunciation_message(score: float, scores: dict | None = None) -> str:
+    if scores:
+        specific = _feedback_from_detail(scores, score)
+        if specific:
+            return specific
+
     if score >= 90:
         return "太棒了！发音非常标准！🌟"
     if score >= 80:

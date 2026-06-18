@@ -350,7 +350,7 @@ async def pronunciation_check(
         fluency_score=scores["fluency_score"],
         completeness_score=scores["completeness_score"],
         prosody_score=scores.get("prosody_score"),
-        message=pronunciation_message(score),
+        message=pronunciation_message(score, scores),
         attempt_id=result["attempt"].id,
         word=WordResponse.model_validate(word),
         gamification=_build_gamification(result),

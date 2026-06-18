@@ -12,7 +12,7 @@ import {
   moduleProgressLabel,
   pickNextWord,
 } from '../../utils/moduleHelpers'
-import { micErrorMessage, recordAudio } from '../../utils/audioRecording'
+import { micErrorMessage, HoldToRecordSession } from '../../utils/audioRecording'
 import { speakWord } from '../../utils/studentNav'
 import { playCorrectSound, playWrongSound } from '../../utils/sounds'
 import type { AchievementData, DailyPlan, GamificationData } from '../../types'
@@ -40,6 +40,8 @@ export function PronunciationModule() {
   const [submitting, setSubmitting] = useState(false)
   const [loading, setLoading] = useState(true)
   const [stars, setStars] = useState<number | null>(null)
+  const [score, setScore] = useState<number | null>(null)
+  const [feedback, setFeedback] = useState('')
   const [finished, setFinished] = useState(false)
   const [reviewMode, setReviewMode] = useState(false)
   const [error, setError] = useState('')
@@ -51,6 +53,8 @@ export function PronunciationModule() {
   const [achievementQueue, setAchievementQueue] = useState<AchievementData[]>([])
   const [currentAchievement, setCurrentAchievement] = useState<AchievementData | null>(null)
   const practicedWordIds = useRef<number[]>([])
+  const recordSessionRef = useRef<HoldToRecordSession | null>(null)
+  const holdingRef = useRef(false)
 
   const loadNext = useCallback(async (review = reviewMode) => {
     if (!childId) return
@@ -58,6 +62,8 @@ export function PronunciationModule() {
     setError('')
     setNeedLearnFirst(false)
     setStars(null)
+    setScore(null)
+    setFeedback('')
     setSubmitting(false)
     setFinished(false)
     setWordEn('')
@@ -133,34 +139,72 @@ export function PronunciationModule() {
     }
   }
 
-  const startRecording = async () => {
-    if (recording || submitting || loading) return
+  const finishRecording = async () => {
+    const session = recordSessionRef.current
+    if (!session || !holdingRef.current) return
+    holdingRef.current = false
+    recordSessionRef.current = null
+    setRecording(false)
+    try {
+      const { blob, ext, durationMs } = await session.end()
+      await submitAudio(blob, ext, durationMs)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : '录音失败，再试一次吧')
+      setSubmitting(false)
+    }
+  }
+
+  const handlePointerDown = async (e: React.PointerEvent<HTMLButtonElement>) => {
+    if (recording || submitting || loading || stars !== null) return
+    e.preventDefault()
+    e.currentTarget.setPointerCapture(e.pointerId)
     setError('')
     setStars(null)
+    setScore(null)
+    setFeedback('')
+    holdingRef.current = true
     setRecording(true)
     try {
-      const { blob, ext } = await recordAudio(4000)
-      setRecording(false)
-      await submitAudio(blob, ext)
+      const session = new HoldToRecordSession()
+      recordSessionRef.current = session
+      await session.begin(8000, () => { void finishRecording() })
     } catch (err) {
+      holdingRef.current = false
+      recordSessionRef.current = null
       setRecording(false)
       setError(micErrorMessage(err))
     }
   }
 
-  const submitAudio = async (blob: Blob, ext: string) => {
+  const handlePointerUp = () => {
+    void finishRecording()
+  }
+
+  const handlePointerCancel = () => {
+    if (!holdingRef.current) return
+    holdingRef.current = false
+    recordSessionRef.current?.cancel()
+    recordSessionRef.current = null
+    setRecording(false)
+    setError('录音已取消，按住按钮再试一次')
+  }
+
+  const submitAudio = async (blob: Blob, ext: string, durationMs: number) => {
     if (!childId) return
     setSubmitting(true)
     const form = new FormData()
     form.append('child_id', String(childId))
     form.append('word_id', String(wordId))
     if (planItemId && !reviewMode) form.append('plan_item_id', String(planItemId))
+    form.append('duration_ms', String(durationMs))
     form.append('audio', blob, `recording.${ext}`)
 
     try {
       const data = await api.learning.pronunciationCheck(form)
       const s = scoreToStars(data.pronunciation_score)
       setStars(s)
+      setScore(Math.round(data.pronunciation_score))
+      setFeedback(data.message)
       if (s >= 2) {
         playCorrectSound()
         triggerCelebration(data.gamification)
@@ -267,7 +311,7 @@ export function PronunciationModule() {
                 <span className="text-5xl">🔊</span>
               </motion.button>
 
-              <p className="text-xl text-violet-500 font-bold mb-6">大声读出来</p>
+              <p className="text-xl text-violet-500 font-bold mb-6">按住说话，松开提交</p>
 
               <AnimatePresence mode="wait">
                 {stars !== null ? (
@@ -278,7 +322,7 @@ export function PronunciationModule() {
                     animate={{ scale: 1, opacity: 1 }}
                     exit={{ scale: 0 }}
                   >
-                    <div className="flex justify-center gap-3 text-5xl mb-4">
+                    <div className="flex justify-center gap-3 text-5xl mb-3">
                       {[1, 2, 3].map((i) => (
                         <motion.span
                           key={i}
@@ -291,10 +335,22 @@ export function PronunciationModule() {
                         </motion.span>
                       ))}
                     </div>
+                    {score !== null && (
+                      <p className="text-2xl font-bold text-slate-600 mb-2">{score} 分</p>
+                    )}
+                    {feedback && (
+                      <p className="text-lg text-violet-600 mb-4 px-4">{feedback}</p>
+                    )}
                     {stars < 2 && (
                       <KidButton
                         color="orange"
-                        onClick={() => { setStars(null); setError(''); setSubmitting(false) }}
+                        onClick={() => {
+                          setStars(null)
+                          setScore(null)
+                          setFeedback('')
+                          setError('')
+                          setSubmitting(false)
+                        }}
                       >
                         再试一次 🎤
                       </KidButton>
@@ -303,14 +359,15 @@ export function PronunciationModule() {
                 ) : (
                   <motion.button
                     key="record"
-                    onClick={startRecording}
-                    disabled={recording || submitting}
-                    className={`w-36 h-36 rounded-full flex items-center justify-center shadow-2xl transition-transform ${
+                    onPointerDown={handlePointerDown}
+                    onPointerUp={handlePointerUp}
+                    onPointerCancel={handlePointerCancel}
+                    disabled={submitting}
+                    className={`w-36 h-36 rounded-full flex items-center justify-center shadow-2xl transition-transform select-none touch-none ${
                       recording ? 'bg-red-400' : 'bg-gradient-to-br from-violet-500 to-indigo-600'
                     } disabled:opacity-60`}
                     animate={recording ? { scale: [1, 1.1, 1] } : {}}
                     transition={recording ? { repeat: Infinity, duration: 0.8 } : {}}
-                    whileTap={{ scale: 0.9 }}
                   >
                     <span className="text-6xl">{recording ? '🔴' : '🎤'}</span>
                   </motion.button>
