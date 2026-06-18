@@ -48,7 +48,7 @@ export async function recordAudio(durationMs: number): Promise<{ blob: Blob; ext
       if (e.data.size > 0) chunks.push(e.data)
     }
     const blob = await new Promise<Blob>((resolve, reject) => {
-      recorder.onerror = () => reject(recorder.error ?? new Error('recording failed'))
+      recorder.onerror = () => reject(new Error('recording failed'))
       recorder.onstop = () => {
         const type = format.mimeType || recorder.mimeType || 'audio/webm'
         resolve(new Blob(chunks, { type }))
